@@ -659,6 +659,15 @@ jobs:
                   w.webViewClient = object : WebViewClient() {
                       override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                           if (view != null && tabs.getOrNull(cur)?.web == view && url != null) urlBox.setText(url)
+                          forceDesktopViewport(view)
+                      }
+
+                      override fun onPageCommitVisible(view: WebView?, url: String?) {
+                          forceDesktopViewport(view)
+                      }
+
+                      override fun onPageFinished(view: WebView?, url: String?) {
+                          forceDesktopViewport(view)
                       }
                   }
                   w.webChromeClient = object : WebChromeClient() {
@@ -692,6 +701,17 @@ jobs:
                       }
                   }
                   tabs.add(Tab(w))
+              }
+
+              private fun forceDesktopViewport(w: WebView?) {
+                  if (!desktop || w == null) return
+                  w.evaluateJavascript(
+                      "(function(){var m=document.querySelector('meta[name=viewport]');" +
+                          "if(!m){m=document.createElement('meta');m.setAttribute('name','viewport');" +
+                          "(document.head||document.documentElement).appendChild(m);}" +
+                          "m.setAttribute('content','width=1024');})();",
+                      null
+                  )
               }
 
               private fun hideCustom() {
