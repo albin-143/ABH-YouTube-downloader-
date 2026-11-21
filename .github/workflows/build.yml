@@ -87,6 +87,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -142,6 +162,8 @@ jobs:
               <application
                   android:allowBackup="true"
                   android:label="ABH Browser"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
                   android:theme="@style/AppTheme">
                   <activity
                       android:name=".MainActivity"
@@ -245,15 +267,18 @@ jobs:
                       <ImageButton android:id="@+id/bDl" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_download" android:contentDescription="bDl" android:background="?android:attr/selectableItemBackgroundBorderless"/>
                   </LinearLayout>
 
+                  <ProgressBar android:id="@+id/pageBar" style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent" android:layout_height="3dp" android:minHeight="3dp" android:maxHeight="3dp"
+                      android:max="100" android:progressTint="#2D7FF9" android:progressBackgroundTint="#00000000" android:visibility="gone"/>
+
                   <FrameLayout android:id="@+id/content" android:layout_width="match_parent"
                       android:layout_height="0dp" android:layout_weight="1">
                       <ScrollView android:id="@+id/home" android:tag="bg" android:layout_width="match_parent" android:layout_height="match_parent"
                           android:fillViewport="true">
                           <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                               android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
-                              <TextView android:tag="logo" android:layout_width="140dp" android:layout_height="140dp" android:layout_marginTop="40dp"
-                                  android:background="@drawable/bg_logo" android:gravity="center" android:text="ABH"
-                                  android:textColor="#FFFFFF" android:textSize="40sp" android:textStyle="bold"/>
+                              <ImageView android:tag="logo" android:layout_width="150dp" android:layout_height="150dp" android:layout_marginTop="40dp"
+                                  android:src="@drawable/ic_logo" android:contentDescription="ABH Browser"/>
                               <TextView android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content"
                                   android:layout_marginTop="24dp" android:text="ABH Browser"
                                   android:textSize="30sp" android:textStyle="bold"/>
@@ -412,6 +437,7 @@ jobs:
               private lateinit var home: View
               private lateinit var tabCount: TextView
               private lateinit var fab: View
+              private lateinit var pageBar: ProgressBar
               private lateinit var dlPage: View
               private lateinit var setPage: View
               private lateinit var dlList: ListView
@@ -434,6 +460,7 @@ jobs:
                   home = findViewById(R.id.home)
                   tabCount = findViewById(R.id.tabCount)
                   fab = findViewById(R.id.fab)
+                  pageBar = findViewById(R.id.pageBar)
                   dlPage = findViewById(R.id.dlPage)
                   setPage = findViewById(R.id.setPage)
                   dlList = findViewById(R.id.dlList)
@@ -684,6 +711,13 @@ jobs:
 
                       override fun onHideCustomView() { hideCustom() }
 
+                      override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                          if (view != null && tabs.getOrNull(cur)?.web == view) {
+                              pageBar.progress = newProgress
+                              pageBar.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
+                          }
+                      }
+
                       override fun onShowFileChooser(
                           webView: WebView?,
                           filePathCallback: ValueCallback<Array<Uri>>?,
@@ -705,13 +739,15 @@ jobs:
 
               private fun forceDesktopViewport(w: WebView?) {
                   if (!desktop || w == null) return
-                  w.evaluateJavascript(
-                      "(function(){var m=document.querySelector('meta[name=viewport]');" +
-                          "if(!m){m=document.createElement('meta');m.setAttribute('name','viewport');" +
-                          "(document.head||document.documentElement).appendChild(m);}" +
-                          "m.setAttribute('content','width=1024');})();",
-                      null
-                  )
+                  val js = "(function(){" +
+                      "function fix(){var ms=document.querySelectorAll('meta[name=viewport]');var m=ms[0];" +
+                      "if(!m){m=document.createElement('meta');m.setAttribute('name','viewport');(document.head||document.documentElement).appendChild(m);}" +
+                      "for(var i=1;i<ms.length;i++){ms[i].parentNode.removeChild(ms[i]);}" +
+                      "if(m.getAttribute('content')!=='width=1024')m.setAttribute('content','width=1024');}" +
+                      "fix();" +
+                      "if(!window.__abhDesk){window.__abhDesk=1;new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['content','name']});}" +
+                      "})();"
+                  w.evaluateJavascript(js, null)
               }
 
               private fun hideCustom() {
@@ -740,6 +776,9 @@ jobs:
                   home.visibility = if (t.home) View.VISIBLE else View.GONE
                   urlBox.setText(if (t.home) "" else (t.web.url ?: ""))
                   tabCount.text = tabs.size.toString()
+                  val pr = t.web.progress
+                  pageBar.progress = pr
+                  pageBar.visibility = if (!t.home && pr in 1..99) View.VISIBLE else View.GONE
                   updateFab()
               }
 
@@ -1128,6 +1167,50 @@ jobs:
               }
           }
           EOF_FILE
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF_FILE'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+          <path android:fillColor="#1F5FBF" android:pathData="M22,54a32,32 0 1,0 64,0a32,32 0 1,0 -64,0z"/>
+          <path android:fillColor="#3DA24A" android:pathData="M32,38C36,32 44,32 46,38C48,44 42,48 44,54C40,58 34,54 32,48z"/>
+          <path android:fillColor="#3DA24A" android:pathData="M60,36C66,32 76,36 76,44C76,50 70,52 68,58C64,56 62,50 60,46z"/>
+          <path android:fillColor="#3DA24A" android:pathData="M44,68C50,64 58,66 62,72C58,78 50,80 44,74z"/>
+          <path android:strokeColor="#66FFFFFF" android:strokeWidth="0.8" android:pathData="M54,22C40,34 40,74 54,86C68,74 68,34 54,22M22,54H86M27,40H81M27,68H81"/>
+          <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:pathData="M22,54a32,32 0 1,0 64,0a32,32 0 1,0 -64,0z"/>
+          <path android:strokeColor="#0A2A5C" android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M30,64L36,44L42,64M32.5,57H39.5M48,44V64M48,44H53C58.5,44 58.5,53.5 53,53.5H48M48,53.5H54C60,53.5 60,64 54,64H48M66,44V64M78,44V64M66,54H78"/>
+          <path android:strokeColor="#FFFFFF" android:strokeWidth="4.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M30,64L36,44L42,64M32.5,57H39.5M48,44V64M48,44H53C58.5,44 58.5,53.5 53,53.5H48M48,53.5H54C60,53.5 60,64 54,64H48M66,44V64M78,44V64M66,54H78"/>
+          </vector>
+          EOF_FILE
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_logo.xml <<'EOF_FILE'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="150dp" android:height="150dp" android:viewportWidth="64" android:viewportHeight="64">
+          <group android:translateX="-22" android:translateY="-22">
+          <path android:fillColor="#1F5FBF" android:pathData="M22,54a32,32 0 1,0 64,0a32,32 0 1,0 -64,0z"/>
+          <path android:fillColor="#3DA24A" android:pathData="M32,38C36,32 44,32 46,38C48,44 42,48 44,54C40,58 34,54 32,48z"/>
+          <path android:fillColor="#3DA24A" android:pathData="M60,36C66,32 76,36 76,44C76,50 70,52 68,58C64,56 62,50 60,46z"/>
+          <path android:fillColor="#3DA24A" android:pathData="M44,68C50,64 58,66 62,72C58,78 50,80 44,74z"/>
+          <path android:strokeColor="#66FFFFFF" android:strokeWidth="0.8" android:pathData="M54,22C40,34 40,74 54,86C68,74 68,34 54,22M22,54H86M27,40H81M27,68H81"/>
+          <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:pathData="M22,54a32,32 0 1,0 64,0a32,32 0 1,0 -64,0z"/>
+          <path android:strokeColor="#0A2A5C" android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M30,64L36,44L42,64M32.5,57H39.5M48,44V64M48,44H53C58.5,44 58.5,53.5 53,53.5H48M48,53.5H54C60,53.5 60,64 54,64H48M66,44V64M78,44V64M66,54H78"/>
+          <path android:strokeColor="#FFFFFF" android:strokeWidth="4.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M30,64L36,44L42,64M32.5,57H39.5M48,44V64M48,44H53C58.5,44 58.5,53.5 53,53.5H48M48,53.5H54C60,53.5 60,64 54,64H48M66,44V64M78,44V64M66,54H78"/>
+          </group>
+          </vector>
+          EOF_FILE
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/colors.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_bg">#0A1F44</color>
+          </resources>
+          EOF_FILE
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_bg"/>
+              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF_FILE
+
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon -PvCode=$((100 + GITHUB_RUN_NUMBER))
 
