@@ -20,6 +20,53 @@ jobs:
       - name: Create project files
         run: |
           set -e
+          base64 -d > abh.keystore <<'EOF_KEY'
+          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
+          EOF_KEY
           cat > settings.gradle.kts <<'EOF_FILE'
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -55,9 +102,21 @@ jobs:
                   applicationId = "com.example.ytdl"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 2
-                  versionName = "2.0"
+                  versionCode = (project.findProperty("vCode") as String?)?.toIntOrNull() ?: 1
+                  versionName = "3.0"
                   ndk { abiFilters += listOf("arm64-v8a") }
+              }
+
+              signingConfigs {
+                  create("abh") {
+                      storeFile = rootProject.file("abh.keystore")
+                      storePassword = "abhbrowser"
+                      keyAlias = "abh"
+                      keyPassword = "abhbrowser"
+                  }
+              }
+              buildTypes {
+                  getByName("debug") { signingConfig = signingConfigs.getByName("abh") }
               }
 
               compileOptions {
@@ -87,7 +146,7 @@ jobs:
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
-                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
                       android:windowSoftInputMode="adjustResize">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -165,70 +224,106 @@ jobs:
           cat > app/src/main/res/drawable/bg_tab.xml <<'EOF_FILE'
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><stroke android:width="2dp" android:color="#FFFFFF"/><corners android:radius="6dp"/></shape>
           EOF_FILE
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/bg_fab.xml <<'EOF_FILE'
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval"><solid android:color="#1E5BB8"/></shape>
+          EOF_FILE
           mkdir -p app/src/main/res/layout
           cat > app/src/main/res/layout/activity_main.xml <<'EOF_FILE'
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:background="#121214">
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/root" android:tag="bg"
+              android:layout_width="match_parent" android:layout_height="match_parent">
 
-              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
-                  <EditText android:id="@+id/url" android:layout_height="44dp" android:background="@drawable/bg_pill" android:hint="Search or type URL" android:textColorHint="#A0A0A8" android:textColor="#FFFFFF" android:textSize="16sp" android:singleLine="true" android:inputType="textUri" android:imeOptions="actionGo" android:paddingStart="18dp" android:paddingEnd="18dp" android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="4dp"/>
-                  <ImageButton android:id="@+id/reload" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_reload" android:contentDescription="reload" android:background="?android:attr/selectableItemBackgroundBorderless" />
-                  <ImageButton android:id="@+id/star" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_star" android:contentDescription="star" android:background="?android:attr/selectableItemBackgroundBorderless" />
-                  <ImageButton android:id="@+id/dl" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_download" android:contentDescription="dl" android:background="?android:attr/selectableItemBackgroundBorderless" />
+              <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
+                      <EditText android:id="@+id/url" android:tag="pill" android:layout_height="44dp" android:background="@drawable/bg_pill" android:hint="Search or type URL" android:textSize="16sp" android:singleLine="true" android:inputType="textUri" android:imeOptions="actionGo" android:paddingStart="18dp" android:paddingEnd="18dp" android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="4dp"/>
+                      <ImageButton android:id="@+id/reload" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_reload" android:contentDescription="reload" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <ImageButton android:id="@+id/star" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_star" android:contentDescription="star" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <ImageButton android:id="@+id/bDl" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_download" android:contentDescription="bDl" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                  </LinearLayout>
+
+                  <FrameLayout android:id="@+id/content" android:layout_width="match_parent"
+                      android:layout_height="0dp" android:layout_weight="1">
+                      <ScrollView android:id="@+id/home" android:tag="bg" android:layout_width="match_parent" android:layout_height="match_parent"
+                          android:fillViewport="true">
+                          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
+                              <TextView android:tag="logo" android:layout_width="140dp" android:layout_height="140dp" android:layout_marginTop="40dp"
+                                  android:background="@drawable/bg_logo" android:gravity="center" android:text="ABH"
+                                  android:textColor="#FFFFFF" android:textSize="40sp" android:textStyle="bold"/>
+                              <TextView android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                  android:layout_marginTop="24dp" android:text="ABH Browser"
+                                  android:textSize="30sp" android:textStyle="bold"/>
+                              <EditText android:id="@+id/homeSearch" android:tag="outline" android:layout_height="56dp" android:background="@drawable/bg_outline" android:hint="Search or type URL" android:textSize="16sp" android:singleLine="true" android:inputType="textUri" android:imeOptions="actionGo" android:paddingStart="18dp" android:paddingEnd="18dp" android:layout_width="match_parent" android:layout_marginTop="32dp"/>
+                              <TextView android:tag="sec" android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:layout_marginTop="28dp" android:layout_marginBottom="8dp" android:text="Quick links"
+                                  android:textSize="18sp"/>
+                              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                  <TextView android:id="@+id/qGoogle" android:tag="card" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="Google" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
+                                  <TextView android:id="@+id/qYouTube" android:tag="card" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="YouTube" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
+                              </LinearLayout>
+                              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                  <TextView android:id="@+id/qWiki" android:tag="card" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="Wikipedia" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
+                                  <TextView android:id="@+id/qGit" android:tag="card" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="GitHub" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
+                              </LinearLayout>
+                          </LinearLayout>
+                      </ScrollView>
+                  </FrameLayout>
+
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical">
+                      <ImageButton android:id="@+id/bBack" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_back" android:contentDescription="bBack" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <ImageButton android:id="@+id/bFwd" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_forward" android:contentDescription="bFwd" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <ImageButton android:id="@+id/bHome" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_home" android:contentDescription="bHome" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <ImageButton android:id="@+id/bAdd" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_add" android:contentDescription="bAdd" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <FrameLayout android:id="@+id/bTabs" android:layout_width="0dp" android:layout_height="56dp"
+                          android:layout_weight="1" android:clickable="true" android:focusable="true">
+                          <TextView android:id="@+id/tabCount" android:tag="tab" android:layout_width="26dp" android:layout_height="26dp"
+                              android:layout_gravity="center" android:background="@drawable/bg_tab" android:gravity="center"
+                              android:text="1" android:textSize="14sp" android:textStyle="bold"/>
+                      </FrameLayout>
+                      <ImageButton android:id="@+id/bMenu" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_menu" android:contentDescription="bMenu" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                  </LinearLayout>
               </LinearLayout>
 
-              <ProgressBar android:id="@+id/dlBar" style="?android:attr/progressBarStyleHorizontal"
-                  android:layout_width="match_parent" android:layout_height="4dp" android:max="100" android:visibility="gone"/>
-              <TextView android:id="@+id/dlStatus" android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:textColor="#9AA0A6" android:textSize="12sp" android:singleLine="true" android:ellipsize="end"
-                  android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="2dp" android:visibility="gone"/>
+              <ImageView android:id="@+id/fab" android:tag="fab" android:layout_width="56dp" android:layout_height="56dp"
+                  android:layout_gravity="bottom|end" android:layout_marginEnd="16dp" android:layout_marginBottom="90dp"
+                  android:background="@drawable/bg_fab" android:padding="15dp" android:src="@drawable/ic_download"
+                  android:elevation="8dp" android:visibility="gone" android:contentDescription="Download this video"/>
 
-              <FrameLayout android:id="@+id/content" android:layout_width="match_parent"
-                  android:layout_height="0dp" android:layout_weight="1">
-                  <ScrollView android:id="@+id/home" android:layout_width="match_parent" android:layout_height="match_parent"
-                      android:fillViewport="true" android:background="#121214">
-                      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                          android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
-                          <TextView android:layout_width="140dp" android:layout_height="140dp" android:layout_marginTop="40dp"
-                              android:background="@drawable/bg_logo" android:gravity="center" android:text="ABH"
-                              android:textColor="#FFFFFF" android:textSize="40sp" android:textStyle="bold"/>
-                          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                              android:layout_marginTop="24dp" android:text="ABH Browser" android:textColor="#9AA0A6"
-                              android:textSize="30sp" android:textStyle="bold"/>
-                          <EditText android:id="@+id/homeSearch" android:layout_height="56dp" android:background="@drawable/bg_outline" android:hint="Search or type URL" android:textColorHint="#A0A0A8" android:textColor="#FFFFFF" android:textSize="16sp" android:singleLine="true" android:inputType="textUri" android:imeOptions="actionGo" android:paddingStart="18dp" android:paddingEnd="18dp" android:layout_width="match_parent" android:layout_marginTop="32dp"/>
-                          <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                              android:layout_marginTop="28dp" android:layout_marginBottom="8dp" android:text="Quick links"
-                              android:textColor="#9AA0A6" android:textSize="18sp"/>
-                          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                              <TextView android:id="@+id/qGoogle" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="Google" android:textColor="#FFFFFF" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
-                              <TextView android:id="@+id/qYouTube" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="YouTube" android:textColor="#FFFFFF" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
-                          </LinearLayout>
-                          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                              <TextView android:id="@+id/qWiki" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="Wikipedia" android:textColor="#FFFFFF" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
-                              <TextView android:id="@+id/qGit" android:layout_width="0dp" android:layout_height="80dp" android:layout_weight="1" android:layout_margin="6dp" android:background="@drawable/bg_card" android:gravity="center" android:text="GitHub" android:textColor="#FFFFFF" android:textSize="18sp" android:clickable="true" android:focusable="true"/>
-                          </LinearLayout>
+              <LinearLayout android:id="@+id/dlPage" android:tag="bg" android:layout_width="match_parent" android:layout_height="match_parent"
+                  android:orientation="vertical" android:clickable="true" android:visibility="gone">
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
+                      <ImageButton android:id="@+id/dlBack" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_back" android:contentDescription="dlBack" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="Downloads" android:textSize="20sp" android:textStyle="bold"/>
+                  </LinearLayout>
+                  <ListView android:id="@+id/dlList" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+                  <TextView android:id="@+id/dlEmpty" android:tag="sec" android:layout_width="match_parent" android:layout_height="0dp"
+                      android:layout_weight="1" android:gravity="center" android:text="No downloads yet" android:textSize="16sp"/>
+              </LinearLayout>
+
+              <LinearLayout android:id="@+id/setPage" android:tag="bg" android:layout_width="match_parent" android:layout_height="match_parent"
+                  android:orientation="vertical" android:clickable="true" android:visibility="gone">
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
+                      <ImageButton android:id="@+id/setBack" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_back" android:contentDescription="setBack" android:background="?android:attr/selectableItemBackgroundBorderless"/>
+                      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="Settings" android:textSize="20sp" android:textStyle="bold"/>
+                  </LinearLayout>
+                  <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+                      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                          <LinearLayout android:id="@+id/rowFolder" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Download folder" android:textSize="17sp"/><TextView android:id="@+id/folderVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Downloads (default)" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowFolderReset" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Reset download folder" android:textSize="17sp"/><TextView android:id="@+id/v1" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Use the default Downloads folder" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowTheme" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Theme" android:textSize="17sp"/><TextView android:id="@+id/themeVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Auto" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowDesktop" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Desktop mode" android:textSize="17sp"/><TextView android:id="@+id/desktopVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowCookies" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Use YouTube login cookies" android:textSize="17sp"/><TextView android:id="@+id/cookiesVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF - turn ON if you see sign in / not a bot errors" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowUpdate" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Update downloader engine" android:textSize="17sp"/><TextView android:id="@+id/v2" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Run this if downloads fail (needs internet)" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ABH Browser" android:textSize="17sp"/><TextView android:id="@+id/v3" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Version 3.0" android:textSize="13sp"/></LinearLayout>
                       </LinearLayout>
                   </ScrollView>
-              </FrameLayout>
-
-              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:orientation="horizontal" android:gravity="center_vertical" android:background="#121214">
-                  <ImageButton android:id="@+id/bBack" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_back" android:contentDescription="bBack" android:background="?android:attr/selectableItemBackgroundBorderless"/>
-                  <ImageButton android:id="@+id/bFwd" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_forward" android:contentDescription="bFwd" android:background="?android:attr/selectableItemBackgroundBorderless"/>
-                  <ImageButton android:id="@+id/bHome" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_home" android:contentDescription="bHome" android:background="?android:attr/selectableItemBackgroundBorderless"/>
-                  <ImageButton android:id="@+id/bAdd" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_add" android:contentDescription="bAdd" android:background="?android:attr/selectableItemBackgroundBorderless"/>
-                  <FrameLayout android:id="@+id/bTabs" android:layout_width="0dp" android:layout_height="56dp"
-                      android:layout_weight="1" android:clickable="true" android:focusable="true">
-                      <TextView android:id="@+id/tabCount" android:layout_width="26dp" android:layout_height="26dp"
-                          android:layout_gravity="center" android:background="@drawable/bg_tab" android:gravity="center"
-                          android:text="1" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold"/>
-                  </FrameLayout>
-                  <ImageButton android:id="@+id/bMenu" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:src="@drawable/ic_menu" android:contentDescription="bMenu" android:background="?android:attr/selectableItemBackgroundBorderless"/>
               </LinearLayout>
-          </LinearLayout>
+          </FrameLayout>
           EOF_FILE
           mkdir -p app/src/main/java/com/example/ytdl
           cat > app/src/main/java/com/example/ytdl/MainActivity.kt <<'EOF_FILE'
@@ -239,18 +334,35 @@ jobs:
           import android.app.AlertDialog
           import android.content.ContentValues
           import android.content.Intent
+          import android.content.res.Configuration
+          import android.graphics.Color
+          import android.graphics.drawable.GradientDrawable
           import android.net.Uri
+          import android.os.Build
           import android.os.Bundle
           import android.os.Environment
+          import android.os.Handler
+          import android.os.Looper
+          import android.provider.DocumentsContract
           import android.provider.MediaStore
+          import android.view.ContextThemeWrapper
+          import android.view.HapticFeedbackConstants
+          import android.view.MotionEvent
           import android.view.View
           import android.view.ViewGroup
           import android.view.inputmethod.InputMethodManager
+          import android.webkit.CookieManager
+          import android.webkit.ValueCallback
           import android.webkit.WebChromeClient
+          import android.webkit.WebSettings
           import android.webkit.WebView
           import android.webkit.WebViewClient
+          import android.widget.BaseAdapter
           import android.widget.EditText
           import android.widget.FrameLayout
+          import android.widget.ImageButton
+          import android.widget.LinearLayout
+          import android.widget.ListView
           import android.widget.PopupMenu
           import android.widget.ProgressBar
           import android.widget.TextView
@@ -258,27 +370,59 @@ jobs:
           import com.yausername.ffmpeg.FFmpeg
           import com.yausername.youtubedl_android.YoutubeDL
           import com.yausername.youtubedl_android.YoutubeDLRequest
+          import org.json.JSONArray
+          import org.json.JSONObject
           import java.io.File
+          import java.util.concurrent.Executors
+          import kotlin.math.abs
+
+          class Pal(val bg: Int, val pill: Int, val card: Int, val text: Int, val sec: Int, val stroke: Int)
+
+          val DARK = Pal(0xFF121214.toInt(), 0xFF3C3C42.toInt(), 0xFF232328.toInt(), 0xFFFFFFFF.toInt(), 0xFF9AA0A6.toInt(), 0xFF8A8A90.toInt())
+          val LIGHT = Pal(0xFFFFFFFF.toInt(), 0xFFECEDF1.toInt(), 0xFFF1F3F4.toInt(), 0xFF1B1B1F.toInt(), 0xFF5F6368.toInt(), 0xFF7A7A80.toInt())
+          const val DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+          const val REQ_FILE = 77
+          const val REQ_TREE = 78
 
           class Tab(val web: WebView) {
               var home = true
           }
 
+          class DlItem(var title: String, var state: Int, var progress: Int, var uri: String?, var mime: String?, var msg: String)
+
           class MainActivity : Activity() {
 
               private val tabs = mutableListOf<Tab>()
+              private val items = mutableListOf<DlItem>()
               private var cur = 0
               private var ready = false
+              private var desktop = false
+              private var theme = 0
+              private var cookiesOn = false
+              private var col = DARK
               private var customView: View? = null
               private var customCb: WebChromeClient.CustomViewCallback? = null
+              private var fileCb: ValueCallback<Array<Uri>>? = null
+              private val exec = Executors.newSingleThreadExecutor()
+              private val prefs by lazy { getSharedPreferences("s", MODE_PRIVATE) }
 
               private lateinit var urlBox: EditText
               private lateinit var homeSearch: EditText
               private lateinit var content: FrameLayout
               private lateinit var home: View
               private lateinit var tabCount: TextView
-              private lateinit var dlBar: ProgressBar
-              private lateinit var dlStatus: TextView
+              private lateinit var fab: View
+              private lateinit var dlPage: View
+              private lateinit var setPage: View
+              private lateinit var dlList: ListView
+              private lateinit var dlAdapter: DlAdapter
+
+              private val dark: Boolean
+                  get() = when (theme) {
+                      1 -> false
+                      2 -> true
+                      else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                  }
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
@@ -289,8 +433,34 @@ jobs:
                   content = findViewById(R.id.content)
                   home = findViewById(R.id.home)
                   tabCount = findViewById(R.id.tabCount)
-                  dlBar = findViewById(R.id.dlBar)
-                  dlStatus = findViewById(R.id.dlStatus)
+                  fab = findViewById(R.id.fab)
+                  dlPage = findViewById(R.id.dlPage)
+                  setPage = findViewById(R.id.setPage)
+                  dlList = findViewById(R.id.dlList)
+
+                  theme = prefs.getInt("theme", 0)
+                  desktop = prefs.getBoolean("desktop", false)
+                  cookiesOn = prefs.getBoolean("cookies", false)
+                  loadItems()
+
+                  dlAdapter = DlAdapter()
+                  dlList.adapter = dlAdapter
+                  dlList.emptyView = findViewById(R.id.dlEmpty)
+                  dlList.setOnItemClickListener { _, _, p, _ ->
+                      val d = items[p]
+                      if (d.state == 2) openFile(d)
+                  }
+                  dlList.setOnItemLongClickListener { _, _, p, _ ->
+                      dlg().setTitle("Remove from list?")
+                          .setPositiveButton("Remove") { _, _ ->
+                              items.removeAt(p)
+                              saveItems()
+                              dlAdapter.notifyDataSetChanged()
+                          }
+                          .setNegativeButton("Cancel", null)
+                          .show()
+                      true
+                  }
 
                   val goAction = TextView.OnEditorActionListener { v, _, _ ->
                       open(v.text.toString())
@@ -309,7 +479,9 @@ jobs:
 
                   click(R.id.reload) { if (!tabs[cur].home) tabs[cur].web.reload() }
                   click(R.id.star) { addBookmark() }
-                  click(R.id.dl) { askDownload() }
+                  click(R.id.bDl) { showPage(dlPage) }
+                  click(R.id.dlBack) { hidePages() }
+                  click(R.id.setBack) { hidePages() }
 
                   click(R.id.bBack) { onBackPressed() }
                   click(R.id.bFwd) {
@@ -322,8 +494,37 @@ jobs:
                   click(R.id.bTabs) { showTabs() }
                   click(R.id.bMenu) { showMenu(it) }
 
+                  click(R.id.rowFolder) { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_TREE) }
+                  click(R.id.rowFolderReset) {
+                      prefs.edit().remove("folder").apply()
+                      updateSettingsUi()
+                      toast("Using default Downloads folder")
+                  }
+                  click(R.id.rowTheme) {
+                      dlg().setTitle("Theme")
+                          .setSingleChoiceItems(arrayOf("Auto (follow system)", "Light (day)", "Dark (night)"), theme) { dialog, i ->
+                              theme = i
+                              prefs.edit().putInt("theme", i).apply()
+                              dialog.dismiss()
+                              applyTheme()
+                          }
+                          .show()
+                  }
+                  click(R.id.rowDesktop) { toggleDesktop() }
+                  click(R.id.rowCookies) {
+                      cookiesOn = !cookiesOn
+                      prefs.edit().putBoolean("cookies", cookiesOn).apply()
+                      updateSettingsUi()
+                  }
+                  click(R.id.rowUpdate) {
+                      toast("Updating downloader engine...")
+                      Thread { updateEngine(true) }.start()
+                  }
+
+                  setupFab()
                   newTab()
                   showTab(0)
+                  applyTheme()
 
                   if (intent?.action == Intent.ACTION_SEND) {
                       val txt = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
@@ -339,8 +540,11 @@ jobs:
                       } catch (e: Exception) {
                           runOnUiThread { toast("Downloader init failed: ${e.message}") }
                       }
+                      if (ready) updateEngine(false)
                   }.start()
               }
+
+              // ---------- helpers ----------
 
               private fun click(id: Int, f: (View) -> Unit) {
                   findViewById<View>(id).setOnClickListener { f(it) }
@@ -348,12 +552,110 @@ jobs:
 
               private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
+              private fun dp(x: Int) = (x * resources.displayMetrics.density).toInt()
+
+              private fun dlg() = AlertDialog.Builder(
+                  this,
+                  if (dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert
+              )
+
+              private fun shape(fill: Int, r: Int, stroke: Int = 0, sw: Int = 0): GradientDrawable {
+                  val g = GradientDrawable()
+                  g.setColor(fill)
+                  g.cornerRadius = dp(r).toFloat()
+                  if (sw > 0) g.setStroke(sw, stroke)
+                  return g
+              }
+
+              // ---------- theme ----------
+
+              private fun applyTheme() {
+                  col = if (dark) DARK else LIGHT
+                  themeTree(findViewById(R.id.root))
+                  window.statusBarColor = col.bg
+                  window.navigationBarColor = col.bg
+                  bars()
+                  for (t in tabs) applyWeb(t.web)
+                  dlAdapter.notifyDataSetChanged()
+                  updateSettingsUi()
+              }
+
+              private fun bars() {
+                  var f = View.SYSTEM_UI_FLAG_VISIBLE
+                  if (!dark) f = f or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                  window.decorView.systemUiVisibility = f
+              }
+
+              private fun themeTree(v: View) {
+                  val tag = v.tag as? String
+                  when (tag) {
+                      "bg" -> v.setBackgroundColor(col.bg)
+                      "pill" -> v.background = shape(col.pill, 24)
+                      "card" -> v.background = shape(col.card, 24)
+                      "outline" -> v.background = shape(Color.TRANSPARENT, 28, col.stroke, dp(1))
+                      "tab" -> v.background = shape(Color.TRANSPARENT, 6, col.text, dp(2))
+                  }
+                  if (v is EditText) {
+                      v.setTextColor(col.text)
+                      v.setHintTextColor(col.sec)
+                  } else if (v is TextView && tag != "logo") {
+                      v.setTextColor(if (tag == "sec") col.sec else col.text)
+                  }
+                  if (v is ImageButton) v.setColorFilter(col.text)
+                  if (v is ViewGroup) {
+                      for (i in 0 until v.childCount) themeTree(v.getChildAt(i))
+                  }
+              }
+
+              private fun updateSettingsUi() {
+                  val folder = prefs.getString("folder", "") ?: ""
+                  findViewById<TextView>(R.id.folderVal).text =
+                      if (folder.isEmpty()) "Downloads (default)" else (Uri.parse(folder).lastPathSegment ?: folder)
+                  findViewById<TextView>(R.id.themeVal).text =
+                      when (theme) { 1 -> "Light (day)"; 2 -> "Dark (night)"; else -> "Auto (follow system)" }
+                  findViewById<TextView>(R.id.desktopVal).text = if (desktop) "ON" else "OFF"
+                  findViewById<TextView>(R.id.cookiesVal).text =
+                      if (cookiesOn) "ON" else "OFF - turn ON if you see sign in / not a bot errors"
+              }
+
+              override fun onConfigurationChanged(newConfig: Configuration) {
+                  super.onConfigurationChanged(newConfig)
+                  if (theme == 0) applyTheme()
+              }
+
+              // ---------- tabs & web ----------
+
+              private fun applyWeb(w: WebView) {
+                  val s = w.settings
+                  s.javaScriptEnabled = true
+                  s.domStorageEnabled = true
+                  s.mediaPlaybackRequiresUserGesture = false
+                  s.userAgentString = if (desktop) DESKTOP_UA else null
+                  s.useWideViewPort = desktop
+                  s.loadWithOverviewMode = desktop
+                  s.setSupportZoom(true)
+                  s.builtInZoomControls = true
+                  s.displayZoomControls = false
+                  if (Build.VERSION.SDK_INT >= 33) {
+                      s.isAlgorithmicDarkeningAllowed = dark
+                  } else {
+                      s.forceDark = if (dark) WebSettings.FORCE_DARK_ON else WebSettings.FORCE_DARK_OFF
+                  }
+              }
+
+              private fun toggleDesktop() {
+                  desktop = !desktop
+                  prefs.edit().putBoolean("desktop", desktop).apply()
+                  for (t in tabs) applyWeb(t.web)
+                  if (!tabs[cur].home) tabs[cur].web.reload()
+                  updateSettingsUi()
+                  toast(if (desktop) "Desktop mode ON" else "Desktop mode OFF")
+              }
+
               @SuppressLint("SetJavaScriptEnabled")
               private fun newTab() {
                   val w = WebView(this)
-                  w.settings.javaScriptEnabled = true
-                  w.settings.domStorageEnabled = true
-                  w.settings.mediaPlaybackRequiresUserGesture = false
+                  applyWeb(w)
                   w.webViewClient = object : WebViewClient() {
                       override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                           if (view != null && tabs.getOrNull(cur)?.web == view && url != null) urlBox.setText(url)
@@ -367,12 +669,27 @@ jobs:
                           (window.decorView as FrameLayout).addView(
                               view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                           )
-                          @Suppress("DEPRECATION")
                           window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
                               View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                       }
 
                       override fun onHideCustomView() { hideCustom() }
+
+                      override fun onShowFileChooser(
+                          webView: WebView?,
+                          filePathCallback: ValueCallback<Array<Uri>>?,
+                          fileChooserParams: WebChromeClient.FileChooserParams?
+                      ): Boolean {
+                          fileCb?.onReceiveValue(null)
+                          fileCb = filePathCallback
+                          return try {
+                              startActivityForResult(fileChooserParams!!.createIntent(), REQ_FILE)
+                              true
+                          } catch (e: Exception) {
+                              fileCb = null
+                              false
+                          }
+                      }
                   }
                   tabs.add(Tab(w))
               }
@@ -383,8 +700,7 @@ jobs:
                   customCb?.onCustomViewHidden()
                   customView = null
                   customCb = null
-                  @Suppress("DEPRECATION")
-                  window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                  bars()
               }
 
               private fun showTab(i: Int) {
@@ -404,6 +720,7 @@ jobs:
                   home.visibility = if (t.home) View.VISIBLE else View.GONE
                   urlBox.setText(if (t.home) "" else (t.web.url ?: ""))
                   tabCount.text = tabs.size.toString()
+                  updateFab()
               }
 
               private fun open(raw: String) {
@@ -423,8 +740,7 @@ jobs:
 
               private fun showTabs() {
                   val names = tabs.map { if (it.home) "Home" else (it.web.title ?: it.web.url ?: "Tab") }.toTypedArray()
-                  AlertDialog.Builder(this)
-                      .setTitle("Tabs")
+                  dlg().setTitle("Tabs")
                       .setItems(names) { _, i -> showTab(i) }
                       .setNeutralButton("Close this tab") { _, _ ->
                           if (tabs.size > 1) {
@@ -440,33 +756,141 @@ jobs:
                       .show()
               }
 
-              private val prefs by lazy { getSharedPreferences("bm", MODE_PRIVATE) }
+              // ---------- pages ----------
+
+              private fun showPage(p: View) {
+                  p.visibility = View.VISIBLE
+                  if (p === setPage) updateSettingsUi()
+                  updateFab()
+              }
+
+              private fun hidePages() {
+                  dlPage.visibility = View.GONE
+                  setPage.visibility = View.GONE
+                  updateFab()
+              }
+
+              private fun updateFab() {
+                  val show = !tabs[cur].home && dlPage.visibility != View.VISIBLE && setPage.visibility != View.VISIBLE
+                  fab.visibility = if (show) View.VISIBLE else View.GONE
+              }
+
+              override fun onBackPressed() {
+                  if (customView != null) { hideCustom(); return }
+                  if (dlPage.visibility == View.VISIBLE || setPage.visibility == View.VISIBLE) { hidePages(); return }
+                  val t = tabs[cur]
+                  if (!t.home && t.web.canGoBack()) t.web.goBack()
+                  else if (!t.home) { t.home = true; refresh() }
+                  else super.onBackPressed()
+              }
+
+              override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+                  if (requestCode == REQ_FILE) {
+                      fileCb?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
+                      fileCb = null
+                  } else if (requestCode == REQ_TREE) {
+                      val u = data?.data
+                      if (resultCode == RESULT_OK && u != null) {
+                          try {
+                              contentResolver.takePersistableUriPermission(
+                                  u, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                              )
+                          } catch (e: Exception) { }
+                          prefs.edit().putString("folder", u.toString()).apply()
+                          updateSettingsUi()
+                          toast("Download folder changed")
+                      }
+                  } else {
+                      super.onActivityResult(requestCode, resultCode, data)
+                  }
+              }
+
+              // ---------- floating download button ----------
+
+              @SuppressLint("ClickableViewAccessibility")
+              private fun setupFab() {
+                  var dx = 0f
+                  var dy = 0f
+                  var sx = 0f
+                  var sy = 0f
+                  var drag = false
+                  var moved = false
+                  val h = Handler(Looper.getMainLooper())
+                  val longPress = Runnable {
+                      drag = true
+                      fab.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                      fab.animate().scaleX(1.2f).scaleY(1.2f).setDuration(100).start()
+                  }
+                  fab.setOnTouchListener { v, e ->
+                      when (e.actionMasked) {
+                          MotionEvent.ACTION_DOWN -> {
+                              sx = e.rawX; sy = e.rawY
+                              dx = v.x - e.rawX; dy = v.y - e.rawY
+                              drag = false; moved = false
+                              h.postDelayed(longPress, 400)
+                          }
+                          MotionEvent.ACTION_MOVE -> {
+                              if (!drag && (abs(e.rawX - sx) > 20 || abs(e.rawY - sy) > 20)) {
+                                  h.removeCallbacks(longPress)
+                                  moved = true
+                              }
+                              if (drag) {
+                                  val p = v.parent as View
+                                  v.x = (e.rawX + dx).coerceIn(0f, (p.width - v.width).toFloat())
+                                  v.y = (e.rawY + dy).coerceIn(0f, (p.height - v.height).toFloat())
+                              }
+                          }
+                          MotionEvent.ACTION_UP -> {
+                              h.removeCallbacks(longPress)
+                              v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                              if (!drag && !moved) askDownload()
+                              drag = false
+                          }
+                          MotionEvent.ACTION_CANCEL -> {
+                              h.removeCallbacks(longPress)
+                              v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                              drag = false
+                          }
+                      }
+                      true
+                  }
+              }
+
+              // ---------- bookmarks & menu ----------
 
               private fun addBookmark() {
                   val t = tabs[cur]
                   val u = if (t.home) null else t.web.url
                   if (u == null) { toast("Open a page first"); return }
-                  val set = prefs.getStringSet("l", emptySet())!!.toMutableSet()
+                  val set = prefs.getStringSet("bmk", emptySet())!!.toMutableSet()
                   set.add(u)
-                  prefs.edit().putStringSet("l", set).apply()
+                  prefs.edit().putStringSet("bmk", set).apply()
                   toast("Bookmarked")
               }
 
               private fun showMenu(anchor: View) {
-                  val pm = PopupMenu(this, anchor)
-                  pm.menu.add("Bookmarks")
-                  pm.menu.add("Share link")
+                  val themed = ContextThemeWrapper(
+                      this,
+                      if (dark) android.R.style.Theme_Material else android.R.style.Theme_Material_Light
+                  )
+                  val pm = PopupMenu(themed, anchor)
+                  pm.menu.add(0, 1, 0, if (desktop) "Desktop mode: ON" else "Desktop mode: OFF")
+                  pm.menu.add(0, 2, 1, "Downloads")
+                  pm.menu.add(0, 3, 2, "Bookmarks")
+                  pm.menu.add(0, 4, 3, "Share link")
+                  pm.menu.add(0, 5, 4, "Settings")
                   pm.setOnMenuItemClickListener {
-                      when (it.title.toString()) {
-                          "Bookmarks" -> {
-                              val list = prefs.getStringSet("l", emptySet())!!.toTypedArray()
-                              AlertDialog.Builder(this)
-                                  .setTitle("Bookmarks")
+                      when (it.itemId) {
+                          1 -> toggleDesktop()
+                          2 -> showPage(dlPage)
+                          3 -> {
+                              val list = prefs.getStringSet("bmk", emptySet())!!.toTypedArray()
+                              dlg().setTitle("Bookmarks")
                                   .setItems(list) { _, i -> open(list[i]) }
-                                  .setNeutralButton("Clear all") { _, _ -> prefs.edit().clear().apply() }
+                                  .setNeutralButton("Clear all") { _, _ -> prefs.edit().remove("bmk").apply() }
                                   .show()
                           }
-                          "Share link" -> {
+                          4 -> {
                               val t = tabs[cur]
                               val u = if (t.home) null else t.web.url
                               if (u != null) {
@@ -476,94 +900,216 @@ jobs:
                                   startActivity(Intent.createChooser(i, "Share"))
                               }
                           }
+                          5 -> showPage(setPage)
                       }
                       true
                   }
                   pm.show()
               }
 
-              @Deprecated("Deprecated in Java")
-              override fun onBackPressed() {
-                  if (customView != null) { hideCustom(); return }
-                  val t = tabs[cur]
-                  if (!t.home && t.web.canGoBack()) t.web.goBack()
-                  else if (!t.home) { t.home = true; refresh() }
-                  else super.onBackPressed()
-              }
+              // ---------- downloads ----------
 
               private fun askDownload() {
                   val t = tabs[cur]
                   val link = if (t.home) null else t.web.url
                   if (link == null) { toast("Open a video page first"); return }
                   if (!ready) { toast("Downloader is starting, try again in a moment"); return }
-                  AlertDialog.Builder(this)
-                      .setTitle("Download")
-                      .setItems(arrayOf("Video - original quality", "Audio - MP3")) { _, w -> startDownload(link, w == 1) }
+                  val title = t.web.title ?: "Video"
+                  dlg().setTitle("Download")
+                      .setItems(arrayOf("Video - original quality", "Audio - MP3")) { _, w -> enqueue(link, title, w == 1) }
                       .show()
               }
 
-              private fun startDownload(link: String, audio: Boolean) {
-                  dlBar.progress = 0
-                  dlBar.visibility = View.VISIBLE
-                  dlStatus.visibility = View.VISIBLE
-                  dlStatus.text = "Starting download..."
-
-                  Thread {
-                      try {
-                          val dir = File(cacheDir, "dl")
-                          dir.deleteRecursively()
-                          dir.mkdirs()
-
-                          val req = YoutubeDLRequest(link)
-                          req.addOption("-o", dir.absolutePath + "/%(title).80s.%(ext)s")
-                          req.addOption("--no-playlist")
-                          if (audio) {
-                              req.addOption("-x")
-                              req.addOption("--audio-format", "mp3")
-                              req.addOption("--audio-quality", "0")
-                          } else {
-                              req.addOption("-f", "bv*+ba/b")
-                              req.addOption("-S", "res,ext:mp4:m4a")
-                              req.addOption("--merge-output-format", "mp4")
-                          }
-
-                          YoutubeDL.getInstance().execute(req) { p, _, line ->
-                              runOnUiThread {
-                                  dlBar.progress = p.toInt().coerceIn(0, 100)
-                                  dlStatus.text = line
-                              }
-                          }
-
-                          val files = dir.listFiles() ?: emptyArray()
-                          for (f in files) saveToDownloads(f)
-
-                          runOnUiThread {
-                              dlBar.progress = 100
-                              dlStatus.text = "Done! Saved in Downloads folder"
-                              toast("Download complete")
-                          }
-                      } catch (e: Exception) {
-                          runOnUiThread { dlStatus.text = "Error: ${e.message}" }
-                      }
-                  }.start()
+              private fun enqueue(link: String, title: String, audio: Boolean) {
+                  val d = DlItem(title, 0, 0, null, null, "")
+                  items.add(0, d)
+                  dlAdapter.notifyDataSetChanged()
+                  toast("Added to Downloads")
+                  val cookies = cookieText(link)
+                  exec.execute { runDownload(d, link, audio, cookies) }
               }
 
-              private fun saveToDownloads(f: File) {
-                  val values = ContentValues().apply {
-                      put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
-                      put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+              private fun cookieText(link: String): String? {
+                  if (!cookiesOn) return null
+                  val host = Uri.parse(link).host ?: return null
+                  if (!host.endsWith("youtube.com") && host != "youtu.be") return null
+                  val raw = CookieManager.getInstance().getCookie("https://www.youtube.com") ?: return null
+                  val sb = StringBuilder("# Netscape HTTP Cookie File\n")
+                  for (part in raw.split(";")) {
+                      val kv = part.trim().split("=", limit = 2)
+                      if (kv.size == 2 && kv[0].isNotEmpty()) {
+                          sb.append(".youtube.com\tTRUE\t/\tTRUE\t2000000000\t").append(kv[0]).append("\t").append(kv[1]).append("\n")
+                      }
                   }
-                  val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return
-                  contentResolver.openOutputStream(uri)?.use { out ->
+                  return sb.toString()
+              }
+
+              private fun ui() = runOnUiThread { dlAdapter.notifyDataSetChanged() }
+
+              private fun runDownload(d: DlItem, link: String, audio: Boolean, cookies: String?) {
+                  d.state = 1
+                  ui()
+                  val dir = File(cacheDir, "dl" + System.nanoTime())
+                  val cf = File(cacheDir, "cookies.txt")
+                  try {
+                      dir.mkdirs()
+                      val req = YoutubeDLRequest(link)
+                      req.addOption("-o", dir.absolutePath + "/%(title).80s.%(ext)s")
+                      req.addOption("--no-playlist")
+                      if (cookies != null) {
+                          cf.writeText(cookies)
+                          req.addOption("--cookies", cf.absolutePath)
+                      }
+                      if (audio) {
+                          req.addOption("-x")
+                          req.addOption("--audio-format", "mp3")
+                          req.addOption("--audio-quality", "0")
+                      } else {
+                          req.addOption("-f", "bv*+ba/b")
+                          req.addOption("-S", "res,ext:mp4:m4a")
+                          req.addOption("--merge-output-format", "mp4")
+                      }
+
+                      YoutubeDL.getInstance().execute(req) { p, _, line ->
+                          d.progress = p.toInt().coerceIn(0, 100)
+                          d.msg = line
+                          ui()
+                      }
+
+                      val f = (dir.listFiles() ?: emptyArray()).maxByOrNull { it.length() }
+                          ?: throw Exception("No file was downloaded")
+                      d.title = f.nameWithoutExtension
+                      saveFile(d, f)
+                      d.state = 2
+                      d.progress = 100
+                      runOnUiThread { toast("Downloaded: " + d.title) }
+                  } catch (e: Exception) {
+                      d.state = 3
+                      d.msg = (e.message ?: "Unknown error").take(700)
+                  } finally {
+                      dir.deleteRecursively()
+                      cf.delete()
+                      runOnUiThread { saveItems(); dlAdapter.notifyDataSetChanged() }
+                  }
+              }
+
+              private fun saveFile(d: DlItem, f: File) {
+                  val mime = when (f.extension.lowercase()) {
+                      "mp4" -> "video/mp4"
+                      "mp3" -> "audio/mpeg"
+                      "webm" -> "video/webm"
+                      "mkv" -> "video/x-matroska"
+                      "m4a" -> "audio/mp4"
+                      else -> "application/octet-stream"
+                  }
+                  var uri: Uri? = null
+                  val tree = prefs.getString("folder", "") ?: ""
+                  if (tree.isNotEmpty()) {
+                      try {
+                          val t = Uri.parse(tree)
+                          val parent = DocumentsContract.buildDocumentUriUsingTree(t, DocumentsContract.getTreeDocumentId(t))
+                          uri = DocumentsContract.createDocument(contentResolver, parent, mime, f.name)
+                      } catch (e: Exception) {
+                          uri = null
+                      }
+                  }
+                  if (uri == null) {
+                      val values = ContentValues().apply {
+                          put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
+                          put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                          put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                      }
+                      uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                  }
+                  val u = uri ?: throw Exception("Could not create file in the download folder")
+                  contentResolver.openOutputStream(u)?.use { out ->
                       f.inputStream().use { it.copyTo(out) }
                   }
-                  f.delete()
+                  d.uri = u.toString()
+                  d.mime = mime
+              }
+
+              private fun openFile(d: DlItem) {
+                  try {
+                      val i = Intent(Intent.ACTION_VIEW)
+                      i.setDataAndType(Uri.parse(d.uri), d.mime ?: "*/*")
+                      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                      startActivity(i)
+                  } catch (e: Exception) {
+                      toast("No app found to open this file")
+                  }
+              }
+
+              private fun saveItems() {
+                  val a = JSONArray()
+                  for (d in items) {
+                      if (d.state >= 2) {
+                          a.put(
+                              JSONObject().put("t", d.title).put("s", d.state)
+                                  .put("u", d.uri ?: "").put("m", d.mime ?: "").put("g", d.msg)
+                          )
+                      }
+                  }
+                  prefs.edit().putString("dl", a.toString()).apply()
+              }
+
+              private fun loadItems() {
+                  try {
+                      val a = JSONArray(prefs.getString("dl", "[]"))
+                      for (i in 0 until a.length()) {
+                          val o = a.getJSONObject(i)
+                          items.add(DlItem(o.getString("t"), o.getInt("s"), 100, o.optString("u"), o.optString("m"), o.optString("g")))
+                      }
+                  } catch (e: Exception) { }
+              }
+
+              private fun updateEngine(manual: Boolean) {
+                  try {
+                      val r = YoutubeDL.getInstance().updateYoutubeDL(application, YoutubeDL.UpdateChannel.NIGHTLY)
+                      if (manual) runOnUiThread { toast("Engine update: $r") }
+                  } catch (e: Exception) {
+                      if (manual) runOnUiThread { toast("Update failed: ${e.message}") }
+                  }
+              }
+
+              inner class DlAdapter : BaseAdapter() {
+                  override fun getCount() = items.size
+                  override fun getItem(position: Int): Any = items[position]
+                  override fun getItemId(position: Int) = position.toLong()
+                  override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
+                      val d = items[position]
+                      val box = LinearLayout(this@MainActivity)
+                      box.orientation = LinearLayout.VERTICAL
+                      box.setPadding(dp(16), dp(12), dp(16), dp(12))
+                      val t = TextView(this@MainActivity)
+                      t.text = d.title
+                      t.textSize = 16f
+                      t.maxLines = 2
+                      t.setTextColor(col.text)
+                      val s = TextView(this@MainActivity)
+                      s.text = when (d.state) {
+                          0 -> "Waiting..."
+                          1 -> "Downloading... " + d.progress + "%"
+                          2 -> "Downloaded - tap to open"
+                          else -> "Failed: " + d.msg
+                      }
+                      s.textSize = 13f
+                      s.setTextColor(col.sec)
+                      box.addView(t)
+                      box.addView(s)
+                      if (d.state < 2) {
+                          val pb = ProgressBar(this@MainActivity, null, android.R.attr.progressBarStyleHorizontal)
+                          pb.max = 100
+                          pb.progress = d.progress
+                          box.addView(pb)
+                      }
+                      return box
+                  }
               }
           }
           EOF_FILE
-
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon -PvCode=$((100 + GITHUB_RUN_NUMBER))
 
       - uses: actions/upload-artifact@v4
         with:
