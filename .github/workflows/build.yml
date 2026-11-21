@@ -107,6 +107,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -325,6 +345,10 @@ jobs:
                       <ImageButton android:id="@+id/dlBack" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_back" android:contentDescription="dlBack" android:background="?android:attr/selectableItemBackgroundBorderless"/>
                       <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="Downloads" android:textSize="20sp" android:textStyle="bold"/>
                   </LinearLayout>
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingBottom="8dp">
+                      <TextView android:id="@+id/tabActive" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_margin="4dp" android:padding="10dp" android:gravity="center" android:text="Downloading" android:textSize="15sp" android:clickable="true" android:focusable="true"/>
+                      <TextView android:id="@+id/tabDone" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_margin="4dp" android:padding="10dp" android:gravity="center" android:text="Downloaded" android:textSize="15sp" android:clickable="true" android:focusable="true"/>
+                  </LinearLayout>
                   <ListView android:id="@+id/dlList" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
                   <TextView android:id="@+id/dlEmpty" android:tag="sec" android:layout_width="match_parent" android:layout_height="0dp"
                       android:layout_weight="1" android:gravity="center" android:text="No downloads yet" android:textSize="16sp"/>
@@ -357,10 +381,12 @@ jobs:
           import android.annotation.SuppressLint
           import android.app.Activity
           import android.app.AlertDialog
+          import android.content.ContentUris
           import android.content.ContentValues
           import android.content.Intent
           import android.content.res.Configuration
           import android.graphics.Color
+          import android.graphics.Typeface
           import android.graphics.drawable.GradientDrawable
           import android.net.Uri
           import android.os.Build
@@ -375,8 +401,11 @@ jobs:
           import android.view.MotionEvent
           import android.view.View
           import android.view.ViewGroup
+          import android.view.animation.AccelerateDecelerateInterpolator
           import android.view.inputmethod.InputMethodManager
           import android.webkit.CookieManager
+          import android.webkit.MimeTypeMap
+          import android.webkit.URLUtil
           import android.webkit.ValueCallback
           import android.webkit.WebChromeClient
           import android.webkit.WebSettings
@@ -385,6 +414,7 @@ jobs:
           import android.widget.BaseAdapter
           import android.widget.EditText
           import android.widget.FrameLayout
+          import android.widget.ImageView
           import android.widget.ImageButton
           import android.widget.LinearLayout
           import android.widget.ListView
@@ -398,6 +428,8 @@ jobs:
           import org.json.JSONArray
           import org.json.JSONObject
           import java.io.File
+          import java.net.HttpURLConnection
+          import java.net.URL
           import java.util.concurrent.Executors
           import kotlin.math.abs
 
@@ -413,13 +445,16 @@ jobs:
               var home = true
           }
 
-          class DlItem(var title: String, var state: Int, var progress: Int, var uri: String?, var mime: String?, var msg: String)
+          class DlItem(var title: String, var state: Int, var progress: Int, var uri: String?, var mime: String?, var msg: String) {
+              var name: String = ""
+          }
 
           class MainActivity : Activity() {
 
               private val tabs = mutableListOf<Tab>()
               private val items = mutableListOf<DlItem>()
               private var cur = 0
+              private var dlTab = 0
               private var ready = false
               private var desktop = false
               private var theme = 0
@@ -474,15 +509,16 @@ jobs:
                   dlList.adapter = dlAdapter
                   dlList.emptyView = findViewById(R.id.dlEmpty)
                   dlList.setOnItemClickListener { _, _, p, _ ->
-                      val d = items[p]
-                      if (d.state == 2) openFile(d)
+                      val d = shown().getOrNull(p)
+                      if (d != null && d.state == 2) openFile(d)
                   }
                   dlList.setOnItemLongClickListener { _, _, p, _ ->
-                      dlg().setTitle("Remove from list?")
+                      val target = shown().getOrNull(p)
+                      if (target != null) dlg().setTitle("Remove from list?")
                           .setPositiveButton("Remove") { _, _ ->
-                              items.removeAt(p)
+                              items.remove(target)
                               saveItems()
-                              dlAdapter.notifyDataSetChanged()
+                              refreshDl()
                           }
                           .setNegativeButton("Cancel", null)
                           .show()
@@ -507,6 +543,8 @@ jobs:
                   click(R.id.reload) { if (!tabs[cur].home) tabs[cur].web.reload() }
                   click(R.id.star) { addBookmark() }
                   click(R.id.bDl) { showPage(dlPage) }
+                  click(R.id.tabActive) { dlTab = 0; refreshDl() }
+                  click(R.id.tabDone) { dlTab = 1; refreshDl() }
                   click(R.id.dlBack) { hidePages() }
                   click(R.id.setBack) { hidePages() }
 
@@ -603,7 +641,7 @@ jobs:
                   window.navigationBarColor = col.bg
                   bars()
                   for (t in tabs) applyWeb(t.web)
-                  dlAdapter.notifyDataSetChanged()
+                  refreshDl()
                   updateSettingsUi()
               }
 
@@ -683,6 +721,9 @@ jobs:
               private fun newTab() {
                   val w = WebView(this)
                   applyWeb(w)
+                  w.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+                      startDirect(url, userAgent, contentDisposition, mimetype)
+                  }
                   w.webViewClient = object : WebViewClient() {
                       override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                           if (view != null && tabs.getOrNull(cur)?.web == view && url != null) urlBox.setText(url)
@@ -982,7 +1023,10 @@ jobs:
               private fun enqueue(link: String, title: String, audio: Boolean) {
                   val d = DlItem(title, 0, 0, null, null, "")
                   items.add(0, d)
-                  dlAdapter.notifyDataSetChanged()
+                  refreshDl()
+                  dlTab = 0
+                  refreshDl()
+                  flyToDownload()
                   toast("Added to Downloads")
                   val cookies = cookieText(link)
                   exec.execute { runDownload(d, link, audio, cookies) }
@@ -1003,7 +1047,7 @@ jobs:
                   return sb.toString()
               }
 
-              private fun ui() = runOnUiThread { dlAdapter.notifyDataSetChanged() }
+              private fun ui() = runOnUiThread { refreshDl() }
 
               private fun runDownload(d: DlItem, link: String, audio: Boolean, cookies: String?) {
                   d.state = 1
@@ -1048,23 +1092,18 @@ jobs:
                   } finally {
                       dir.deleteRecursively()
                       cf.delete()
-                      runOnUiThread { saveItems(); dlAdapter.notifyDataSetChanged() }
+                      runOnUiThread { finishItem(d) }
                   }
               }
 
               private fun saveFile(d: DlItem, f: File) {
-                  val mime = when (f.extension.lowercase()) {
-                      "mp4" -> "video/mp4"
-                      "mp3" -> "audio/mpeg"
-                      "webm" -> "video/webm"
-                      "mkv" -> "video/x-matroska"
-                      "m4a" -> "audio/mp4"
-                      else -> "application/octet-stream"
-                  }
+                  val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(f.extension.lowercase())
+                      ?: "application/octet-stream"
                   var uri: Uri? = null
                   val tree = prefs.getString("folder", "") ?: ""
                   if (tree.isNotEmpty()) {
                       try {
+                          deleteExisting(f.name, tree)
                           val t = Uri.parse(tree)
                           val parent = DocumentsContract.buildDocumentUriUsingTree(t, DocumentsContract.getTreeDocumentId(t))
                           uri = DocumentsContract.createDocument(contentResolver, parent, mime, f.name)
@@ -1073,6 +1112,7 @@ jobs:
                       }
                   }
                   if (uri == null) {
+                      deleteExisting(f.name, "")
                       val values = ContentValues().apply {
                           put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
                           put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -1086,6 +1126,185 @@ jobs:
                   }
                   d.uri = u.toString()
                   d.mime = mime
+                  d.name = f.name
+              }
+
+              // Same file name downloaded again: delete the old file so the new one replaces it.
+              private fun deleteExisting(name: String, tree: String) {
+                  try {
+                      if (tree.isNotEmpty()) {
+                          val t = Uri.parse(tree)
+                          val children = DocumentsContract.buildChildDocumentsUriUsingTree(t, DocumentsContract.getTreeDocumentId(t))
+                          val ids = mutableListOf<String>()
+                          contentResolver.query(
+                              children,
+                              arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                              null, null, null
+                          )?.use { c ->
+                              while (c.moveToNext()) {
+                                  if (c.getString(1) == name) ids.add(c.getString(0))
+                              }
+                          }
+                          for (id in ids) {
+                              DocumentsContract.deleteDocument(contentResolver, DocumentsContract.buildDocumentUriUsingTree(t, id))
+                          }
+                      } else {
+                          val base = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                          val rows = mutableListOf<Long>()
+                          contentResolver.query(
+                              base,
+                              arrayOf(MediaStore.MediaColumns._ID),
+                              MediaStore.MediaColumns.DISPLAY_NAME + "=? AND " + MediaStore.MediaColumns.RELATIVE_PATH + "=?",
+                              arrayOf(name, Environment.DIRECTORY_DOWNLOADS + "/"),
+                              null
+                          )?.use { c ->
+                              while (c.moveToNext()) rows.add(c.getLong(0))
+                          }
+                          for (id in rows) contentResolver.delete(ContentUris.withAppendedId(base, id), null, null)
+                      }
+                  } catch (e: Exception) { }
+              }
+
+              private fun shown(): List<DlItem> = items.filter { (it.state != 2) == (dlTab == 0) }
+
+              private fun refreshDl() {
+                  val active = items.count { it.state != 2 }
+                  val done = items.size - active
+                  val a = findViewById<TextView>(R.id.tabActive)
+                  val b = findViewById<TextView>(R.id.tabDone)
+                  a.text = "Downloading ($active)"
+                  b.text = "Downloaded ($done)"
+                  val accent = 0xFF2D7FF9.toInt()
+                  for ((v, sel) in listOf(a to (dlTab == 0), b to (dlTab == 1))) {
+                      v.setTextColor(if (sel) accent else col.sec)
+                      v.setTypeface(null, if (sel) Typeface.BOLD else Typeface.NORMAL)
+                      v.background = if (sel) shape(col.card, 20) else null
+                  }
+                  findViewById<TextView>(R.id.dlEmpty).text =
+                      if (dlTab == 0) "No active downloads" else "No downloaded files yet"
+                  dlAdapter.notifyDataSetChanged()
+              }
+
+              private fun finishItem(d: DlItem) {
+                  if (d.state == 2) items.removeAll { it !== d && it.state == 2 && it.name == d.name }
+                  saveItems()
+                  refreshDl()
+              }
+
+              // Small download icon flies to the top-right download button.
+              private fun flyToDownload() {
+                  val root = findViewById<FrameLayout>(R.id.root)
+                  val target = findViewById<View>(R.id.bDl)
+                  val rl = IntArray(2)
+                  val tl = IntArray(2)
+                  root.getLocationOnScreen(rl)
+                  target.getLocationOnScreen(tl)
+                  val size = dp(44)
+                  val v = ImageView(this)
+                  v.setBackgroundResource(R.drawable.bg_fab)
+                  v.setImageResource(R.drawable.ic_download)
+                  v.setPadding(dp(10), dp(10), dp(10), dp(10))
+                  val sx: Float
+                  val sy: Float
+                  if (fab.visibility == View.VISIBLE) {
+                      val fl = IntArray(2)
+                      fab.getLocationOnScreen(fl)
+                      sx = (fl[0] - rl[0] + (fab.width - size) / 2).toFloat()
+                      sy = (fl[1] - rl[1] + (fab.height - size) / 2).toFloat()
+                  } else {
+                      sx = ((root.width - size) / 2).toFloat()
+                      sy = (root.height * 0.6f)
+                  }
+                  root.addView(v, FrameLayout.LayoutParams(size, size))
+                  v.x = sx
+                  v.y = sy
+                  val ex = (tl[0] - rl[0] + (target.width - size) / 2).toFloat()
+                  val ey = (tl[1] - rl[1] + (target.height - size) / 2).toFloat()
+                  v.animate().x(ex).y(ey).scaleX(0.35f).scaleY(0.35f).alpha(0.4f)
+                      .setDuration(750)
+                      .setInterpolator(AccelerateDecelerateInterpolator())
+                      .withEndAction {
+                          root.removeView(v)
+                          target.animate().scaleX(1.3f).scaleY(1.3f).setDuration(120).withEndAction {
+                              target.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                          }.start()
+                      }
+                      .start()
+              }
+
+              // ---------- direct file downloads (links inside web pages) ----------
+
+              private fun startDirect(url: String, ua: String?, cd: String?, mimeHint: String?) {
+                  val name = URLUtil.guessFileName(url, cd, mimeHint)
+                  val d = DlItem(name.substringBeforeLast("."), 0, 0, null, null, "")
+                  items.add(0, d)
+                  dlTab = 0
+                  refreshDl()
+                  flyToDownload()
+                  toast("Downloading " + name)
+                  Thread { runDirect(d, url, ua, name) }.start()
+              }
+
+              private fun openFollow(start: String, ua: String?): HttpURLConnection {
+                  var url = start
+                  for (hop in 0..10) {
+                      val c = URL(url).openConnection() as HttpURLConnection
+                      c.instanceFollowRedirects = false
+                      c.connectTimeout = 20000
+                      c.readTimeout = 30000
+                      if (ua != null) c.setRequestProperty("User-Agent", ua)
+                      val ck = CookieManager.getInstance().getCookie(url)
+                      if (ck != null) c.setRequestProperty("Cookie", ck)
+                      val code = c.responseCode
+                      if (code in 300..399) {
+                          val loc = c.getHeaderField("Location") ?: throw Exception("Bad redirect")
+                          url = URL(URL(url), loc).toString()
+                          c.disconnect()
+                          continue
+                      }
+                      if (code !in 200..299) throw Exception("Server returned HTTP " + code)
+                      return c
+                  }
+                  throw Exception("Too many redirects")
+              }
+
+              private fun runDirect(d: DlItem, url: String, ua: String?, name: String) {
+                  d.state = 1
+                  ui()
+                  val dir = File(cacheDir, "dl" + System.nanoTime())
+                  try {
+                      dir.mkdirs()
+                      val tmp = File(dir, name)
+                      val conn = openFollow(url, ua)
+                      val total = conn.contentLengthLong
+                      conn.inputStream.use { ins ->
+                          tmp.outputStream().use { out ->
+                              val buf = ByteArray(65536)
+                              var done = 0L
+                              while (true) {
+                                  val n = ins.read(buf)
+                                  if (n < 0) break
+                                  out.write(buf, 0, n)
+                                  done += n
+                                  if (total > 0) {
+                                      val p = (done * 100 / total).toInt()
+                                      if (p != d.progress) { d.progress = p; ui() }
+                                  }
+                              }
+                          }
+                      }
+                      saveFile(d, tmp)
+                      d.title = tmp.nameWithoutExtension
+                      d.state = 2
+                      d.progress = 100
+                      runOnUiThread { toast("Downloaded: " + d.title) }
+                  } catch (e: Exception) {
+                      d.state = 3
+                      d.msg = (e.message ?: "Unknown error").take(300)
+                  } finally {
+                      dir.deleteRecursively()
+                      runOnUiThread { finishItem(d) }
+                  }
               }
 
               private fun openFile(d: DlItem) {
@@ -1105,7 +1324,7 @@ jobs:
                       if (d.state >= 2) {
                           a.put(
                               JSONObject().put("t", d.title).put("s", d.state)
-                                  .put("u", d.uri ?: "").put("m", d.mime ?: "").put("g", d.msg)
+                                  .put("u", d.uri ?: "").put("m", d.mime ?: "").put("g", d.msg).put("n", d.name)
                           )
                       }
                   }
@@ -1117,7 +1336,9 @@ jobs:
                       val a = JSONArray(prefs.getString("dl", "[]"))
                       for (i in 0 until a.length()) {
                           val o = a.getJSONObject(i)
-                          items.add(DlItem(o.getString("t"), o.getInt("s"), 100, o.optString("u"), o.optString("m"), o.optString("g")))
+                          val it2 = DlItem(o.getString("t"), o.getInt("s"), 100, o.optString("u"), o.optString("m"), o.optString("g"))
+                          it2.name = o.optString("n")
+                          items.add(it2)
                       }
                   } catch (e: Exception) { }
               }
@@ -1132,11 +1353,11 @@ jobs:
               }
 
               inner class DlAdapter : BaseAdapter() {
-                  override fun getCount() = items.size
-                  override fun getItem(position: Int): Any = items[position]
+                  override fun getCount() = shown().size
+                  override fun getItem(position: Int): Any = shown()[position]
                   override fun getItemId(position: Int) = position.toLong()
                   override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-                      val d = items[position]
+                      val d = shown()[position]
                       val box = LinearLayout(this@MainActivity)
                       box.orientation = LinearLayout.VERTICAL
                       box.setPadding(dp(16), dp(12), dp(16), dp(12))
