@@ -207,6 +207,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -1248,8 +1268,16 @@ jobs:
                       .setCancelable(true)
                       .show()
                   Thread {
-                      val clients = listOf("", "android_vr", "web_safari", "ios")
+                      val clients = listOf("", "default,android_vr,web_safari,ios,tv,tv_simply,mweb,web_embedded")
                       val diag = StringBuilder()
+                      val ver = try {
+                          val vr = YoutubeDLRequest(link)
+                          vr.addOption("--version")
+                          YoutubeDL.getInstance().execute(vr).out.trim()
+                      } catch (e: Exception) {
+                          "?"
+                      }
+                      diag.append("yt-dlp version: ").append(ver).append("\n")
                       var res: List<Q> = emptyList()
                       for ((n, c) in clients.withIndex()) {
                           runOnUiThread {
@@ -1259,8 +1287,8 @@ jobs:
                               res = fetchQualities(link, ck, c)
                               if (res.isNotEmpty()) break
                           } catch (e: Exception) {
-                              diag.append(if (c.isEmpty()) "default" else c).append(": ")
-                                  .append((e.message ?: e.toString()).replace("\n", " ").take(140)).append("\n")
+                              diag.append(if (c.isEmpty()) "default clients" else "all clients").append(": ")
+                                  .append((e.message ?: e.toString()).replace("\n", " ").take(700)).append("\n")
                           }
                           if (!wait.isShowing) return@Thread
                       }
@@ -1292,7 +1320,7 @@ jobs:
               private fun failDialog(link: String, page: String, title: String, err: String) {
                   val best = Q("Original quality (best)", "bv*+ba/b", false, 0L, "best", "best")
                   dlg().setTitle("Could not read qualities")
-                      .setMessage(if (err.isEmpty()) "Unknown error" else err.take(400))
+                      .setMessage(if (err.isEmpty()) "Unknown error" else err.take(1800))
                       .setPositiveButton("Download best") { _, _ -> enqueue(link, page, title, best) }
                       .setNeutralButton("Update engine") { _, _ ->
                           toast("Updating downloader engine...")
@@ -1334,11 +1362,15 @@ jobs:
                           cf.writeText(cookies)
                           req.addOption("--cookies", cf.absolutePath)
                       }
-                      val out = YoutubeDL.getInstance().execute(req).out
+                      val resp = YoutubeDL.getInstance().execute(req)
+                      val out = resp.out
+                      val why = resp.err.lines()
+                          .filter { it.startsWith("WARNING") || it.startsWith("ERROR") }
+                          .joinToString(" | ").take(600)
                       val start = out.indexOf("{")
-                      if (start < 0) throw Exception("no data returned: " + out.take(100))
+                      if (start < 0) throw Exception("no data returned: " + out.take(100) + " " + why)
                       val json = JSONObject(out.substring(start))
-                      val arr = json.optJSONArray("formats") ?: throw Exception("no formats in response")
+                      val arr = json.optJSONArray("formats") ?: throw Exception("no formats in response. " + why)
                       val heights = java.util.TreeMap<Int, Long>()
                       val fpsBy = java.util.HashMap<Int, Int>()
                       var audioBest = 0L
@@ -1356,7 +1388,7 @@ jobs:
                               audioBest = maxOf(audioBest, size)
                           }
                       }
-                      if (heights.isEmpty()) throw Exception("no video formats (" + arr.length() + " other formats, maybe only images)")
+                      if (heights.isEmpty()) throw Exception("no video formats (" + arr.length() + " other formats, maybe only images). " + why)
                       val list = mutableListOf<Q>()
                       val top = heights.lastKey()
                       val ab = audioBest
