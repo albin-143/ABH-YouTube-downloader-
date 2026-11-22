@@ -247,6 +247,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -748,6 +768,10 @@ jobs:
 
                   Thread {
                       try {
+                          if (!prefs.getBoolean("engineFix1", false)) {
+                              try { File(noBackupFilesDir, "youtubedl-android/yt-dlp").deleteRecursively() } catch (e: Exception) { }
+                              prefs.edit().putBoolean("engineFix1", true).apply()
+                          }
                           YoutubeDL.getInstance().init(application)
                           FFmpeg.getInstance().init(application)
                           ready = true
@@ -834,7 +858,7 @@ jobs:
                   findViewById<TextView>(R.id.desktopVal).text = if (desktop) "ON" else "OFF"
                   findViewById<TextView>(R.id.cookiesVal).text =
                       if (cookiesOn) "ON" else "OFF - turn ON if you see sign in / not a bot errors"
-                  findViewById<TextView>(R.id.v2).text = "yt-dlp version: " + engineVer + " - tap to update now"
+                  findViewById<TextView>(R.id.v2).text = "yt-dlp version: " + engineVer + " - tap to update (newer versions may break YouTube; Reset undoes it)"
                   findViewById<TextView>(R.id.chanVal).text =
                       if (prefs.getBoolean("nightly", false)) "Nightly (newest, may be unstable)" else "Stable"
                   findViewById<TextView>(R.id.autoVal).text = if (prefs.getBoolean("autoUpd", false)) "ON" else "OFF"
@@ -1309,7 +1333,7 @@ jobs:
                   val link = normalUrl(page)
                   val ck = cookieText(link)
                   val wait = dlg().setTitle("Please wait")
-                      .setMessage("Checking available qualities...")
+                      .setMessage("Checking available qualities... this can take up to a minute")
                       .setCancelable(true)
                       .setOnCancelListener {
                           try { YoutubeDL.getInstance().destroyProcessById(qPid) } catch (e: Exception) { }
@@ -1330,6 +1354,7 @@ jobs:
                           } catch (e: Exception) {
                               diag.append(if (c.isEmpty()) "default clients" else "all clients").append(": ")
                                   .append((e.message ?: e.toString()).replace("\n", " ").take(700)).append("\n")
+                              if ((e.message ?: "").contains("timed out")) break
                           }
                           if (!wait.isShowing) return@Thread
                       }
@@ -1363,10 +1388,7 @@ jobs:
                   dlg().setTitle("Could not read qualities")
                       .setMessage(if (err.isEmpty()) "Unknown error" else err.take(1800))
                       .setPositiveButton("Download best") { _, _ -> enqueue(link, page, title, best) }
-                      .setNeutralButton("Update engine") { _, _ ->
-                          toast("Updating downloader engine...")
-                          Thread { updateEngine(true) }.start()
-                      }
+                      .setNeutralButton("Reset engine") { _, _ -> resetEngine() }
                       .setNegativeButton("Cancel", null)
                       .show()
               }
@@ -1399,7 +1421,7 @@ jobs:
                   val finished = java.util.concurrent.atomic.AtomicBoolean(false)
                   val timedOut = java.util.concurrent.atomic.AtomicBoolean(false)
                   Thread {
-                      try { Thread.sleep(40000) } catch (e: Exception) { }
+                      try { Thread.sleep(90000) } catch (e: Exception) { }
                       if (!finished.get()) {
                           timedOut.set(true)
                           try { YoutubeDL.getInstance().destroyProcessById(pid) } catch (e: Exception) { }
@@ -1417,7 +1439,7 @@ jobs:
                       val resp = try {
                           YoutubeDL.getInstance().execute(req, pid)
                       } catch (e: Exception) {
-                          if (timedOut.get()) throw Exception("timed out after 40 seconds - YouTube is slow or blocking this phone")
+                          if (timedOut.get()) throw Exception("timed out after 90 seconds - YouTube is slow or blocking this phone")
                           throw e
                       }
                       val out = resp.out
@@ -1941,7 +1963,7 @@ jobs:
                   dlg().setTitle("Reset downloader engine?")
                       .setMessage("This brings back the original downloader that came with the app. The app will close, then open it again.")
                       .setPositiveButton("Reset") { _, _ ->
-                          try { File(noBackupFilesDir, "youtubedl-android").deleteRecursively() } catch (e: Exception) { }
+                          try { File(noBackupFilesDir, "youtubedl-android/yt-dlp").deleteRecursively() } catch (e: Exception) { }
                           prefs.edit().putBoolean("autoUpd", false).apply()
                           finishAffinity()
                       }
