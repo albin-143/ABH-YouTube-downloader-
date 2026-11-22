@@ -187,6 +187,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -524,9 +544,12 @@ jobs:
               var vid = ""
               var qkey = ""
               var qtag = ""
+              var client = ""   // YouTube player client used for this download
           }
 
-          class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long, val key: String, val tag: String)
+          class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long, val key: String, val tag: String) {
+              var client = ""
+          }
 
           val SIZE_RE = Regex("([0-9.]+)%\\s+of\\s+~?\\s*([0-9.]+\\s*[KMGT]?i?B)")
 
@@ -1225,18 +1248,28 @@ jobs:
                       .setCancelable(true)
                       .show()
                   Thread {
-                      var err = ""
-                      val res: List<Q> = try {
-                          fetchQualities(link, ck)
-                      } catch (e: Exception) {
-                          err = e.message ?: ""
-                          emptyList()
+                      val clients = listOf("", "android_vr", "web_safari", "ios")
+                      val diag = StringBuilder()
+                      var res: List<Q> = emptyList()
+                      for ((n, c) in clients.withIndex()) {
+                          runOnUiThread {
+                              if (wait.isShowing) wait.setMessage("Checking available qualities... (" + (n + 1) + "/" + clients.size + ")")
+                          }
+                          try {
+                              res = fetchQualities(link, ck, c)
+                              if (res.isNotEmpty()) break
+                          } catch (e: Exception) {
+                              diag.append(if (c.isEmpty()) "default" else c).append(": ")
+                                  .append((e.message ?: e.toString()).replace("\n", " ").take(140)).append("\n")
+                          }
+                          if (!wait.isShowing) return@Thread
                       }
+                      val found = res
                       runOnUiThread {
                           if (!wait.isShowing) return@runOnUiThread
                           wait.dismiss()
-                          if (res.isNotEmpty()) showQualities(link, page, title, res)
-                          else failDialog(link, page, title, err)
+                          if (found.isNotEmpty()) showQualities(link, page, title, found)
+                          else failDialog(link, page, title, diag.toString())
                       }
                   }.start()
               }
@@ -1290,21 +1323,22 @@ jobs:
                       .show()
               }
 
-              private fun fetchQualities(link: String, cookies: String?): List<Q> {
+              private fun fetchQualities(link: String, cookies: String?, client: String): List<Q> {
                   val cf = File(cacheDir, "cookies_q.txt")
                   try {
                       val req = YoutubeDLRequest(link)
                       req.addOption("--dump-single-json")
                       req.addOption("--no-playlist")
+                      if (client.isNotEmpty()) req.addOption("--extractor-args", "youtube:player_client=" + client)
                       if (cookies != null) {
                           cf.writeText(cookies)
                           req.addOption("--cookies", cf.absolutePath)
                       }
                       val out = YoutubeDL.getInstance().execute(req).out
                       val start = out.indexOf("{")
-                      if (start < 0) return emptyList()
+                      if (start < 0) throw Exception("no data returned: " + out.take(100))
                       val json = JSONObject(out.substring(start))
-                      val arr = json.optJSONArray("formats") ?: return emptyList()
+                      val arr = json.optJSONArray("formats") ?: throw Exception("no formats in response")
                       val heights = java.util.TreeMap<Int, Long>()
                       val fpsBy = java.util.HashMap<Int, Int>()
                       var audioBest = 0L
@@ -1322,7 +1356,7 @@ jobs:
                               audioBest = maxOf(audioBest, size)
                           }
                       }
-                      if (heights.isEmpty()) return emptyList()
+                      if (heights.isEmpty()) throw Exception("no video formats (" + arr.length() + " other formats, maybe only images)")
                       val list = mutableListOf<Q>()
                       val top = heights.lastKey()
                       val ab = audioBest
@@ -1339,6 +1373,7 @@ jobs:
                           list.add(Q(lab(h) + sz(v), "bv*[height<=" + h + "]+ba/b[height<=" + h + "]", false, v + ab, "h" + h, h.toString() + "p"))
                       }
                       list.add(Q("Audio only (MP3)" + (if (ab > 0) " - ~" + fmtSize(ab) else ""), "", true, ab, "mp3", "audio"))
+                      for (q in list) q.client = client
                       return list
                   } finally {
                       cf.delete()
@@ -1356,6 +1391,7 @@ jobs:
                   d.vid = vidOf(link)
                   d.qkey = q.key
                   d.qtag = q.tag
+                  d.client = q.client
                   items.add(0, d)
                   dlTab = 0
                   flyToDownload()
@@ -1455,6 +1491,7 @@ jobs:
                       val tag = if (d.qtag.isEmpty()) "" else " [" + d.qtag + "]"
                       req.addOption("-o", dir.absolutePath + "/%(title).80s" + tag + ".%(ext)s")
                       req.addOption("--no-playlist")
+                      if (d.client.isNotEmpty()) req.addOption("--extractor-args", "youtube:player_client=" + d.client)
                       if (cookies != null) {
                           cf.writeText(cookies)
                           req.addOption("--cookies", cf.absolutePath)
@@ -1765,7 +1802,7 @@ jobs:
                               .put("g", d.msg).put("n", d.name).put("i", d.id).put("k", d.kind).put("l", d.link)
                               .put("p", d.page).put("a", d.audio).put("f", d.fmt).put("ua", d.ua ?: "")
                               .put("z", d.total).put("d", d.done).put("r", d.progress)
-                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag)
+                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag).put("cl", d.client)
                       )
                   }
                   prefs.edit().putString("dl", a.toString()).apply()
@@ -1794,6 +1831,7 @@ jobs:
                           it2.vid = o.optString("v")
                           it2.qkey = o.optString("q")
                           it2.qtag = o.optString("tg")
+                          it2.client = o.optString("cl")
                           items.add(it2)
                       }
                   } catch (e: Exception) { }
