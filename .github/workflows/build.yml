@@ -267,6 +267,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -508,9 +528,6 @@ jobs:
                           <LinearLayout android:id="@+id/rowDesktop" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Desktop mode" android:textSize="17sp"/><TextView android:id="@+id/desktopVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF" android:textSize="13sp"/></LinearLayout>
                           <LinearLayout android:id="@+id/rowCookies" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Use YouTube login cookies" android:textSize="17sp"/><TextView android:id="@+id/cookiesVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF - turn ON if you see sign in / not a bot errors" android:textSize="13sp"/></LinearLayout>
                           <LinearLayout android:id="@+id/rowUpdate" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Update downloader engine" android:textSize="17sp"/><TextView android:id="@+id/v2" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Run this if downloads fail (needs internet)" android:textSize="13sp"/></LinearLayout>
-                          <LinearLayout android:id="@+id/rowChannel" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Engine update channel" android:textSize="17sp"/><TextView android:id="@+id/chanVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Stable" android:textSize="13sp"/></LinearLayout>
-                          <LinearLayout android:id="@+id/rowAuto" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Auto-update engine at startup" android:textSize="17sp"/><TextView android:id="@+id/autoVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF" android:textSize="13sp"/></LinearLayout>
-                          <LinearLayout android:id="@+id/rowReset" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Reset downloader engine" android:textSize="17sp"/><TextView android:id="@+id/v4" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Go back to the original downloader if updates made it worse" android:textSize="13sp"/></LinearLayout>
                           <LinearLayout android:id="@+id/rowAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ABH Browser" android:textSize="17sp"/><TextView android:id="@+id/v3" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Version 3.0" android:textSize="13sp"/></LinearLayout>
                       </LinearLayout>
                   </ScrollView>
@@ -607,12 +624,9 @@ jobs:
               var vid = ""
               var qkey = ""
               var qtag = ""
-              var client = ""   // YouTube player client used for this download
           }
 
-          class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long, val key: String, val tag: String) {
-              var client = ""
-          }
+          class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long, val key: String, val tag: String)
 
           val SIZE_RE = Regex("([0-9.]+)%\\s+of\\s+~?\\s*([0-9.]+\\s*[KMGT]?i?B)")
 
@@ -622,8 +636,6 @@ jobs:
               private val items = mutableListOf<DlItem>()
               private var cur = 0
               private var dlTab = 0
-              @Volatile private var qPid = ""
-              @Volatile private var engineVer = "?"
               private var ready = false
               private var desktop = false
               private var theme = 0
@@ -743,18 +755,6 @@ jobs:
                       toast("Updating downloader engine...")
                       Thread { updateEngine(true) }.start()
                   }
-                  click(R.id.rowChannel) {
-                      val n = !prefs.getBoolean("nightly", false)
-                      prefs.edit().putBoolean("nightly", n).apply()
-                      updateSettingsUi()
-                      toast(if (n) "Engine updates: Nightly" else "Engine updates: Stable")
-                  }
-                  click(R.id.rowAuto) {
-                      val a = !prefs.getBoolean("autoUpd", false)
-                      prefs.edit().putBoolean("autoUpd", a).apply()
-                      updateSettingsUi()
-                  }
-                  click(R.id.rowReset) { resetEngine() }
 
                   setupFab()
                   restoreTabs()
@@ -768,21 +768,13 @@ jobs:
 
                   Thread {
                       try {
-                          if (!prefs.getBoolean("engineFix1", false)) {
-                              try { File(noBackupFilesDir, "youtubedl-android/yt-dlp").deleteRecursively() } catch (e: Exception) { }
-                              prefs.edit().putBoolean("engineFix1", true).apply()
-                          }
                           YoutubeDL.getInstance().init(application)
                           FFmpeg.getInstance().init(application)
                           ready = true
                       } catch (e: Exception) {
                           runOnUiThread { toast("Downloader init failed: ${e.message}") }
                       }
-                      if (ready) {
-                          if (prefs.getBoolean("autoUpd", false)) updateEngine(false)
-                          engineVer = readVersion()
-                          runOnUiThread { updateSettingsUi() }
-                      }
+                      if (ready) updateEngine(false)
                   }.start()
               }
 
@@ -858,10 +850,6 @@ jobs:
                   findViewById<TextView>(R.id.desktopVal).text = if (desktop) "ON" else "OFF"
                   findViewById<TextView>(R.id.cookiesVal).text =
                       if (cookiesOn) "ON" else "OFF - turn ON if you see sign in / not a bot errors"
-                  findViewById<TextView>(R.id.v2).text = "yt-dlp version: " + engineVer + " - tap to update (newer versions may break YouTube; Reset undoes it)"
-                  findViewById<TextView>(R.id.chanVal).text =
-                      if (prefs.getBoolean("nightly", false)) "Nightly (newest, may be unstable)" else "Stable"
-                  findViewById<TextView>(R.id.autoVal).text = if (prefs.getBoolean("autoUpd", false)) "ON" else "OFF"
               }
 
               override fun onConfigurationChanged(newConfig: Configuration) {
@@ -902,18 +890,6 @@ jobs:
               private fun newTab() {
                   val w = WebView(this)
                   applyWeb(w)
-                  w.setOnLongClickListener {
-                      val r = w.hitTestResult
-                      val ex = r.extra
-                      if ((r.type == WebView.HitTestResult.SRC_ANCHOR_TYPE || r.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) &&
-                          ex != null && ex.startsWith("http")
-                      ) {
-                          linkMenu(ex)
-                          true
-                      } else {
-                          false
-                      }
-                  }
                   w.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
                       startDirect(url, userAgent, contentDisposition, mimetype, w.url ?: url)
                   }
@@ -1050,11 +1026,6 @@ jobs:
               }
 
               // ---------- keep tabs when the app is closed / reopened ----------
-
-              override fun onPause() {
-                  super.onPause()
-                  saveTabs()
-              }
 
               override fun onStop() {
                   super.onStop()
@@ -1317,179 +1288,22 @@ jobs:
                   return 0
               }
 
+              // One tap = download the original (best) quality. No quality list.
               private fun askDownload() {
                   val t = tabs[cur]
                   val page = if (t.home) null else t.web.url
                   if (page == null) { toast("Open a video page first"); return }
+                  if (!ready) { toast("Downloader is starting, try again in a moment"); return }
                   if (isYt(page) && ytId(page).isEmpty()) {
-                      toast("Open a video first, or long-press a video to download it")
+                      toast("Open a video first, then tap download")
                       return
                   }
-                  askDownloadFor(page, t.web.title ?: "Video")
-              }
-
-              private fun askDownloadFor(page: String, title: String) {
-                  if (!ready) { toast("Downloader is starting, try again in a moment"); return }
                   val link = normalUrl(page)
-                  val ck = cookieText(link)
-                  val wait = dlg().setTitle("Please wait")
-                      .setMessage("Checking available qualities... this can take up to a minute")
-                      .setCancelable(true)
-                      .setOnCancelListener {
-                          try { YoutubeDL.getInstance().destroyProcessById(qPid) } catch (e: Exception) { }
-                      }
-                      .show()
-                  Thread {
-                      val clients = listOf("", "default,android_vr,web_safari,ios,tv,tv_simply,mweb,web_embedded")
-                      val diag = StringBuilder()
-                      diag.append("yt-dlp version: ").append(engineVer).append("\n")
-                      var res: List<Q> = emptyList()
-                      for ((n, c) in clients.withIndex()) {
-                          runOnUiThread {
-                              if (wait.isShowing) wait.setMessage("Checking available qualities... (" + (n + 1) + "/" + clients.size + ")")
-                          }
-                          try {
-                              res = fetchQualities(link, ck, c)
-                              if (res.isNotEmpty()) break
-                          } catch (e: Exception) {
-                              diag.append(if (c.isEmpty()) "default clients" else "all clients").append(": ")
-                                  .append((e.message ?: e.toString()).replace("\n", " ").take(700)).append("\n")
-                              if ((e.message ?: "").contains("timed out")) break
-                          }
-                          if (!wait.isShowing) return@Thread
-                      }
-                      val found = res
-                      runOnUiThread {
-                          if (!wait.isShowing) return@runOnUiThread
-                          wait.dismiss()
-                          if (found.isNotEmpty()) showQualities(link, page, title, found)
-                          else failDialog(link, page, title, diag.toString())
-                      }
-                  }.start()
-              }
-
-              // Long-press on a link (for example a video thumbnail on YouTube).
-              private fun linkMenu(url: String) {
-                  dlg().setTitle(url.take(60))
-                      .setItems(arrayOf("Download video (choose quality)", "Open in new tab")) { _, i ->
-                          if (i == 0) {
-                              askDownloadFor(url, "Video")
-                          } else {
-                              newTab()
-                              showTab(tabs.size - 1)
-                              open(url)
-                          }
-                      }
-                      .show()
-              }
-
-              private fun failDialog(link: String, page: String, title: String, err: String) {
-                  val best = Q("Original quality (best)", "bv*+ba/b", false, 0L, "best", "best")
-                  dlg().setTitle("Could not read qualities")
-                      .setMessage(if (err.isEmpty()) "Unknown error" else err.take(1800))
-                      .setPositiveButton("Download best") { _, _ -> enqueue(link, page, title, best) }
-                      .setNeutralButton("Reset engine") { _, _ -> resetEngine() }
-                      .setNegativeButton("Cancel", null)
-                      .show()
-              }
-
-              private fun showQualities(link: String, page: String, title: String, qs: List<Q>) {
-                  val vid = vidOf(link)
-                  val labels = qs.map {
-                      when (qStatus(vid, it.key)) {
-                          2 -> "\u2714\u2714 " + it.label + "  (downloaded)"
-                          1 -> it.label + "  (downloading...)"
-                          else -> it.label
-                      }
-                  }.toTypedArray()
-                  dlg().setTitle("Choose quality")
-                      .setItems(labels) { _, i ->
-                          val q = qs[i]
-                          when (qStatus(vid, q.key)) {
-                              2 -> toast("Already downloaded in this quality")
-                              1 -> toast("This quality is already downloading")
-                              else -> enqueue(link, page, title, q)
-                          }
-                      }
-                      .show()
-              }
-
-              private fun fetchQualities(link: String, cookies: String?, client: String): List<Q> {
-                  val cf = File(cacheDir, "cookies_q.txt")
-                  val pid = "q" + System.nanoTime()
-                  qPid = pid
-                  val finished = java.util.concurrent.atomic.AtomicBoolean(false)
-                  val timedOut = java.util.concurrent.atomic.AtomicBoolean(false)
-                  Thread {
-                      try { Thread.sleep(90000) } catch (e: Exception) { }
-                      if (!finished.get()) {
-                          timedOut.set(true)
-                          try { YoutubeDL.getInstance().destroyProcessById(pid) } catch (e: Exception) { }
-                      }
-                  }.start()
-                  try {
-                      val req = YoutubeDLRequest(link)
-                      req.addOption("--dump-single-json")
-                      req.addOption("--no-playlist")
-                      if (client.isNotEmpty()) req.addOption("--extractor-args", "youtube:player_client=" + client)
-                      if (cookies != null) {
-                          cf.writeText(cookies)
-                          req.addOption("--cookies", cf.absolutePath)
-                      }
-                      val resp = try {
-                          YoutubeDL.getInstance().execute(req, pid)
-                      } catch (e: Exception) {
-                          if (timedOut.get()) throw Exception("timed out after 90 seconds - YouTube is slow or blocking this phone")
-                          throw e
-                      }
-                      val out = resp.out
-                      val why = resp.err.lines()
-                          .filter { it.startsWith("WARNING") || it.startsWith("ERROR") }
-                          .joinToString(" | ").take(600)
-                      val start = out.indexOf("{")
-                      if (start < 0) throw Exception("no data returned: " + out.take(100) + " " + why)
-                      val json = JSONObject(out.substring(start))
-                      val arr = json.optJSONArray("formats") ?: throw Exception("no formats in response. " + why)
-                      val heights = java.util.TreeMap<Int, Long>()
-                      val fpsBy = java.util.HashMap<Int, Int>()
-                      var audioBest = 0L
-                      for (i in 0 until arr.length()) {
-                          val f = arr.getJSONObject(i)
-                          val vc = f.optString("vcodec", "none")
-                          val ac = f.optString("acodec", "none")
-                          val h = f.optInt("height", 0)
-                          val size = maxOf(f.optLong("filesize", 0L), f.optLong("filesize_approx", 0L))
-                          if (vc != "none" && vc != "null" && h > 0) {
-                              heights[h] = maxOf(heights[h] ?: 0L, size)
-                              val fp = f.optDouble("fps", 0.0).toInt()
-                              if (fp > (fpsBy[h] ?: 0)) fpsBy[h] = fp
-                          } else if (vc == "none" && ac != "none" && ac != "null") {
-                              audioBest = maxOf(audioBest, size)
-                          }
-                      }
-                      if (heights.isEmpty()) throw Exception("no video formats (" + arr.length() + " other formats, maybe only images). " + why)
-                      val list = mutableListOf<Q>()
-                      val top = heights.lastKey()
-                      val ab = audioBest
-                      fun sz(v: Long): String = if (v > 0) " - ~" + fmtSize(v + ab) else ""
-                      fun lab(h: Int): String {
-                          val fp = fpsBy[h] ?: 0
-                          return h.toString() + "p" + (if (fp > 30) fp.toString() else "")
-                      }
-                      val topSize = heights[top] ?: 0L
-                      list.add(Q("Original quality (best) - " + lab(top) + sz(topSize), "bv*+ba/b", false, topSize + ab, "h" + top, top.toString() + "p"))
-                      for (h in heights.descendingKeySet()) {
-                          if (h == top) continue
-                          val v = heights[h] ?: 0L
-                          list.add(Q(lab(h) + sz(v), "bv*[height<=" + h + "]+ba/b[height<=" + h + "]", false, v + ab, "h" + h, h.toString() + "p"))
-                      }
-                      list.add(Q("Audio only (MP3)" + (if (ab > 0) " - ~" + fmtSize(ab) else ""), "", true, ab, "mp3", "audio"))
-                      for (q in list) q.client = client
-                      return list
-                  } finally {
-                      finished.set(true)
-                      cf.delete()
-                  }
+                  val st = qStatus(vidOf(link), "best")
+                  if (st == 2) { toast("\u2714\u2714 Already downloaded"); return }
+                  if (st == 1) { toast("Already in Downloads"); return }
+                  val q = Q("Original quality (best)", "bv*+ba/b", false, 0L, "best", "")
+                  enqueue(link, page, t.web.title ?: "Video", q)
               }
 
               private fun enqueue(link: String, page: String, title: String, q: Q) {
@@ -1503,7 +1317,6 @@ jobs:
                   d.vid = vidOf(link)
                   d.qkey = q.key
                   d.qtag = q.tag
-                  d.client = q.client
                   items.add(0, d)
                   dlTab = 0
                   flyToDownload()
@@ -1603,7 +1416,6 @@ jobs:
                       val tag = if (d.qtag.isEmpty()) "" else " [" + d.qtag + "]"
                       req.addOption("-o", dir.absolutePath + "/%(title).80s" + tag + ".%(ext)s")
                       req.addOption("--no-playlist")
-                      if (d.client.isNotEmpty()) req.addOption("--extractor-args", "youtube:player_client=" + d.client)
                       if (cookies != null) {
                           cf.writeText(cookies)
                           req.addOption("--cookies", cf.absolutePath)
@@ -1914,7 +1726,7 @@ jobs:
                               .put("g", d.msg).put("n", d.name).put("i", d.id).put("k", d.kind).put("l", d.link)
                               .put("p", d.page).put("a", d.audio).put("f", d.fmt).put("ua", d.ua ?: "")
                               .put("z", d.total).put("d", d.done).put("r", d.progress)
-                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag).put("cl", d.client)
+                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag)
                       )
                   }
                   prefs.edit().putString("dl", a.toString()).apply()
@@ -1943,40 +1755,14 @@ jobs:
                           it2.vid = o.optString("v")
                           it2.qkey = o.optString("q")
                           it2.qtag = o.optString("tg")
-                          it2.client = o.optString("cl")
                           items.add(it2)
                       }
                   } catch (e: Exception) { }
               }
 
-              private fun readVersion(): String {
-                  return try {
-                      val vr = YoutubeDLRequest("https://example.com")
-                      vr.addOption("--version")
-                      YoutubeDL.getInstance().execute(vr).out.trim()
-                  } catch (e: Exception) {
-                      "?"
-                  }
-              }
-
-              private fun resetEngine() {
-                  dlg().setTitle("Reset downloader engine?")
-                      .setMessage("This brings back the original downloader that came with the app. The app will close, then open it again.")
-                      .setPositiveButton("Reset") { _, _ ->
-                          try { File(noBackupFilesDir, "youtubedl-android/yt-dlp").deleteRecursively() } catch (e: Exception) { }
-                          prefs.edit().putBoolean("autoUpd", false).apply()
-                          finishAffinity()
-                      }
-                      .setNegativeButton("Cancel", null)
-                      .show()
-              }
-
               private fun updateEngine(manual: Boolean) {
                   try {
-                      val ch = if (prefs.getBoolean("nightly", false)) YoutubeDL.UpdateChannel.NIGHTLY else YoutubeDL.UpdateChannel.STABLE
-                      val r = YoutubeDL.getInstance().updateYoutubeDL(application, ch)
-                      engineVer = readVersion()
-                      runOnUiThread { updateSettingsUi() }
+                      val r = YoutubeDL.getInstance().updateYoutubeDL(application, YoutubeDL.UpdateChannel.NIGHTLY)
                       if (manual) runOnUiThread { toast("Engine update: $r") }
                   } catch (e: Exception) {
                       if (manual) runOnUiThread { toast("Update failed: ${e.message}") }
