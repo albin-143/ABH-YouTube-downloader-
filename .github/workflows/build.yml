@@ -227,6 +227,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -468,6 +488,9 @@ jobs:
                           <LinearLayout android:id="@+id/rowDesktop" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Desktop mode" android:textSize="17sp"/><TextView android:id="@+id/desktopVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF" android:textSize="13sp"/></LinearLayout>
                           <LinearLayout android:id="@+id/rowCookies" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Use YouTube login cookies" android:textSize="17sp"/><TextView android:id="@+id/cookiesVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF - turn ON if you see sign in / not a bot errors" android:textSize="13sp"/></LinearLayout>
                           <LinearLayout android:id="@+id/rowUpdate" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Update downloader engine" android:textSize="17sp"/><TextView android:id="@+id/v2" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Run this if downloads fail (needs internet)" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowChannel" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Engine update channel" android:textSize="17sp"/><TextView android:id="@+id/chanVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Stable" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowAuto" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Auto-update engine at startup" android:textSize="17sp"/><TextView android:id="@+id/autoVal" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="OFF" android:textSize="13sp"/></LinearLayout>
+                          <LinearLayout android:id="@+id/rowReset" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Reset downloader engine" android:textSize="17sp"/><TextView android:id="@+id/v4" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Go back to the original downloader if updates made it worse" android:textSize="13sp"/></LinearLayout>
                           <LinearLayout android:id="@+id/rowAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackground"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ABH Browser" android:textSize="17sp"/><TextView android:id="@+id/v3" android:tag="sec" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Version 3.0" android:textSize="13sp"/></LinearLayout>
                       </LinearLayout>
                   </ScrollView>
@@ -579,6 +602,8 @@ jobs:
               private val items = mutableListOf<DlItem>()
               private var cur = 0
               private var dlTab = 0
+              @Volatile private var qPid = ""
+              @Volatile private var engineVer = "?"
               private var ready = false
               private var desktop = false
               private var theme = 0
@@ -698,6 +723,18 @@ jobs:
                       toast("Updating downloader engine...")
                       Thread { updateEngine(true) }.start()
                   }
+                  click(R.id.rowChannel) {
+                      val n = !prefs.getBoolean("nightly", false)
+                      prefs.edit().putBoolean("nightly", n).apply()
+                      updateSettingsUi()
+                      toast(if (n) "Engine updates: Nightly" else "Engine updates: Stable")
+                  }
+                  click(R.id.rowAuto) {
+                      val a = !prefs.getBoolean("autoUpd", false)
+                      prefs.edit().putBoolean("autoUpd", a).apply()
+                      updateSettingsUi()
+                  }
+                  click(R.id.rowReset) { resetEngine() }
 
                   setupFab()
                   restoreTabs()
@@ -717,7 +754,11 @@ jobs:
                       } catch (e: Exception) {
                           runOnUiThread { toast("Downloader init failed: ${e.message}") }
                       }
-                      if (ready) updateEngine(false)
+                      if (ready) {
+                          if (prefs.getBoolean("autoUpd", false)) updateEngine(false)
+                          engineVer = readVersion()
+                          runOnUiThread { updateSettingsUi() }
+                      }
                   }.start()
               }
 
@@ -793,6 +834,10 @@ jobs:
                   findViewById<TextView>(R.id.desktopVal).text = if (desktop) "ON" else "OFF"
                   findViewById<TextView>(R.id.cookiesVal).text =
                       if (cookiesOn) "ON" else "OFF - turn ON if you see sign in / not a bot errors"
+                  findViewById<TextView>(R.id.v2).text = "yt-dlp version: " + engineVer + " - tap to update now"
+                  findViewById<TextView>(R.id.chanVal).text =
+                      if (prefs.getBoolean("nightly", false)) "Nightly (newest, may be unstable)" else "Stable"
+                  findViewById<TextView>(R.id.autoVal).text = if (prefs.getBoolean("autoUpd", false)) "ON" else "OFF"
               }
 
               override fun onConfigurationChanged(newConfig: Configuration) {
@@ -1266,18 +1311,14 @@ jobs:
                   val wait = dlg().setTitle("Please wait")
                       .setMessage("Checking available qualities...")
                       .setCancelable(true)
+                      .setOnCancelListener {
+                          try { YoutubeDL.getInstance().destroyProcessById(qPid) } catch (e: Exception) { }
+                      }
                       .show()
                   Thread {
                       val clients = listOf("", "default,android_vr,web_safari,ios,tv,tv_simply,mweb,web_embedded")
                       val diag = StringBuilder()
-                      val ver = try {
-                          val vr = YoutubeDLRequest(link)
-                          vr.addOption("--version")
-                          YoutubeDL.getInstance().execute(vr).out.trim()
-                      } catch (e: Exception) {
-                          "?"
-                      }
-                      diag.append("yt-dlp version: ").append(ver).append("\n")
+                      diag.append("yt-dlp version: ").append(engineVer).append("\n")
                       var res: List<Q> = emptyList()
                       for ((n, c) in clients.withIndex()) {
                           runOnUiThread {
@@ -1353,6 +1394,17 @@ jobs:
 
               private fun fetchQualities(link: String, cookies: String?, client: String): List<Q> {
                   val cf = File(cacheDir, "cookies_q.txt")
+                  val pid = "q" + System.nanoTime()
+                  qPid = pid
+                  val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+                  val timedOut = java.util.concurrent.atomic.AtomicBoolean(false)
+                  Thread {
+                      try { Thread.sleep(40000) } catch (e: Exception) { }
+                      if (!finished.get()) {
+                          timedOut.set(true)
+                          try { YoutubeDL.getInstance().destroyProcessById(pid) } catch (e: Exception) { }
+                      }
+                  }.start()
                   try {
                       val req = YoutubeDLRequest(link)
                       req.addOption("--dump-single-json")
@@ -1362,7 +1414,12 @@ jobs:
                           cf.writeText(cookies)
                           req.addOption("--cookies", cf.absolutePath)
                       }
-                      val resp = YoutubeDL.getInstance().execute(req)
+                      val resp = try {
+                          YoutubeDL.getInstance().execute(req, pid)
+                      } catch (e: Exception) {
+                          if (timedOut.get()) throw Exception("timed out after 40 seconds - YouTube is slow or blocking this phone")
+                          throw e
+                      }
                       val out = resp.out
                       val why = resp.err.lines()
                           .filter { it.startsWith("WARNING") || it.startsWith("ERROR") }
@@ -1408,6 +1465,7 @@ jobs:
                       for (q in list) q.client = client
                       return list
                   } finally {
+                      finished.set(true)
                       cf.delete()
                   }
               }
@@ -1869,9 +1927,34 @@ jobs:
                   } catch (e: Exception) { }
               }
 
+              private fun readVersion(): String {
+                  return try {
+                      val vr = YoutubeDLRequest("https://example.com")
+                      vr.addOption("--version")
+                      YoutubeDL.getInstance().execute(vr).out.trim()
+                  } catch (e: Exception) {
+                      "?"
+                  }
+              }
+
+              private fun resetEngine() {
+                  dlg().setTitle("Reset downloader engine?")
+                      .setMessage("This brings back the original downloader that came with the app. The app will close, then open it again.")
+                      .setPositiveButton("Reset") { _, _ ->
+                          try { File(noBackupFilesDir, "youtubedl-android").deleteRecursively() } catch (e: Exception) { }
+                          prefs.edit().putBoolean("autoUpd", false).apply()
+                          finishAffinity()
+                      }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+              }
+
               private fun updateEngine(manual: Boolean) {
                   try {
-                      val r = YoutubeDL.getInstance().updateYoutubeDL(application, YoutubeDL.UpdateChannel.NIGHTLY)
+                      val ch = if (prefs.getBoolean("nightly", false)) YoutubeDL.UpdateChannel.NIGHTLY else YoutubeDL.UpdateChannel.STABLE
+                      val r = YoutubeDL.getInstance().updateYoutubeDL(application, ch)
+                      engineVer = readVersion()
+                      runOnUiThread { updateSettingsUi() }
                       if (manual) runOnUiThread { toast("Engine update: $r") }
                   } catch (e: Exception) {
                       if (manual) runOnUiThread { toast("Update failed: ${e.message}") }
