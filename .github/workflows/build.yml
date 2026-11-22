@@ -147,6 +147,46 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -414,6 +454,7 @@ jobs:
           import android.os.Environment
           import android.os.Handler
           import android.os.Looper
+          import android.os.Parcel
           import android.provider.DocumentsContract
           import android.provider.MediaStore
           import android.view.ContextThemeWrapper
@@ -480,9 +521,12 @@ jobs:
               var sizeLabel = ""
               @Volatile var stop = 0  // 1 = pause, 2 = cancel/delete
               @Volatile var gen = 0
+              var vid = ""
+              var qkey = ""
+              var qtag = ""
           }
 
-          class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long)
+          class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long, val key: String, val tag: String)
 
           val SIZE_RE = Regex("([0-9.]+)%\\s+of\\s+~?\\s*([0-9.]+\\s*[KMGT]?i?B)")
 
@@ -613,8 +657,7 @@ jobs:
                   }
 
                   setupFab()
-                  newTab()
-                  showTab(0)
+                  restoreTabs()
                   applyTheme()
 
                   if (intent?.action == Intent.ACTION_SEND) {
@@ -747,6 +790,18 @@ jobs:
               private fun newTab() {
                   val w = WebView(this)
                   applyWeb(w)
+                  w.setOnLongClickListener {
+                      val r = w.hitTestResult
+                      val ex = r.extra
+                      if ((r.type == WebView.HitTestResult.SRC_ANCHOR_TYPE || r.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) &&
+                          ex != null && ex.startsWith("http")
+                      ) {
+                          linkMenu(ex)
+                          true
+                      } else {
+                          false
+                      }
+                  }
                   w.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
                       startDirect(url, userAgent, contentDisposition, mimetype, w.url ?: url)
                   }
@@ -880,6 +935,74 @@ jobs:
                           }
                       }
                       .show()
+              }
+
+              // ---------- keep tabs when the app is closed / reopened ----------
+
+              override fun onPause() {
+                  super.onPause()
+                  saveTabs()
+              }
+
+              override fun onStop() {
+                  super.onStop()
+                  saveTabs()
+              }
+
+              private fun saveTabs() {
+                  try {
+                      val dir = File(filesDir, "tabs")
+                      dir.mkdirs()
+                      dir.listFiles()?.forEach { it.delete() }
+                      val arr = JSONArray()
+                      for (i in 0 until tabs.size) {
+                          val t = tabs[i]
+                          val url = t.web.url ?: ""
+                          arr.put(JSONObject().put("home", t.home).put("url", url))
+                          if (url.isNotEmpty()) {
+                              try {
+                                  val b = Bundle()
+                                  t.web.saveState(b)
+                                  val p = Parcel.obtain()
+                                  p.writeBundle(b)
+                                  File(dir, "t" + i + ".bin").writeBytes(p.marshall())
+                                  p.recycle()
+                              } catch (e: Exception) { }
+                          }
+                      }
+                      prefs.edit().putString("tabs", arr.toString()).putInt("cur", cur).apply()
+                  } catch (e: Exception) { }
+              }
+
+              private fun restoreTabs() {
+                  try {
+                      val arr = JSONArray(prefs.getString("tabs", "[]"))
+                      for (i in 0 until arr.length()) {
+                          val o = arr.getJSONObject(i)
+                          newTab()
+                          val t = tabs[tabs.size - 1]
+                          t.home = o.optBoolean("home", true)
+                          val url = o.optString("url")
+                          if (url.isNotEmpty()) {
+                              var restored = false
+                              val f = File(filesDir, "tabs/t" + i + ".bin")
+                              if (f.exists()) {
+                                  try {
+                                      val bytes = f.readBytes()
+                                      val p = Parcel.obtain()
+                                      p.unmarshall(bytes, 0, bytes.size)
+                                      p.setDataPosition(0)
+                                      val b = p.readBundle(MainActivity::class.java.classLoader)
+                                      p.recycle()
+                                      if (b != null && t.web.restoreState(b) != null) restored = true
+                                  } catch (e: Exception) { }
+                              }
+                              if (!restored) t.web.loadUrl(url)
+                          }
+                      }
+                  } catch (e: Exception) { }
+                  if (tabs.isEmpty()) newTab()
+                  showTab(prefs.getInt("cur", 0).coerceIn(0, tabs.size - 1))
               }
 
               // ---------- pages ----------
@@ -1042,12 +1165,60 @@ jobs:
                   else -> b.toString() + " B"
               }
 
+              private val ytRe = Regex("(?:[?&]v=|youtu\\.be/|/shorts/|/embed/|/live/)([A-Za-z0-9_-]{11})")
+
+              private fun isYt(link: String): Boolean {
+                  val h = Uri.parse(link).host ?: return false
+                  return h.endsWith("youtube.com") || h == "youtu.be"
+              }
+
+              private fun ytId(link: String): String =
+                  if (!isYt(link)) "" else (ytRe.find(link)?.groupValues?.get(1) ?: "")
+
+              private fun vidOf(link: String): String = ytId(link).ifEmpty { link }
+
+              private fun normalUrl(link: String): String {
+                  val id = ytId(link)
+                  return if (id.isEmpty()) link else "https://www.youtube.com/watch?v=" + id
+              }
+
+              private fun fileExists(d: DlItem): Boolean {
+                  val u = d.uri ?: return false
+                  return try {
+                      contentResolver.openAssetFileDescriptor(Uri.parse(u), "r")?.use { true } ?: false
+                  } catch (e: Exception) {
+                      false
+                  }
+              }
+
+              // 2 = already downloaded (file still exists), 1 = download in progress, 0 = free
+              private fun qStatus(vid: String, key: String): Int {
+                  for (d in items) {
+                      if (d.kind == 0 && d.vid == vid && d.qkey == key) {
+                          if (d.state == 2) {
+                              if (fileExists(d)) return 2
+                          } else if (d.state != 3) {
+                              return 1
+                          }
+                      }
+                  }
+                  return 0
+              }
+
               private fun askDownload() {
                   val t = tabs[cur]
-                  val link = if (t.home) null else t.web.url
-                  if (link == null) { toast("Open a video page first"); return }
+                  val page = if (t.home) null else t.web.url
+                  if (page == null) { toast("Open a video page first"); return }
+                  if (isYt(page) && ytId(page).isEmpty()) {
+                      toast("Open a video first, or long-press a video to download it")
+                      return
+                  }
+                  askDownloadFor(page, t.web.title ?: "Video")
+              }
+
+              private fun askDownloadFor(page: String, title: String) {
                   if (!ready) { toast("Downloader is starting, try again in a moment"); return }
-                  val title = t.web.title ?: "Video"
+                  val link = normalUrl(page)
                   val ck = cookieText(link)
                   val wait = dlg().setTitle("Please wait")
                       .setMessage("Checking available qualities...")
@@ -1064,23 +1235,58 @@ jobs:
                       runOnUiThread {
                           if (!wait.isShowing) return@runOnUiThread
                           wait.dismiss()
-                          if (res.isNotEmpty()) {
-                              showQualities(link, title, res)
-                          } else {
-                              toast("Could not read qualities. " + err.take(80))
-                              showQualities(
-                                  link, title,
-                                  listOf(Q("Original quality (best)", "bv*+ba/b", false, 0L), Q("Audio only (MP3)", "", true, 0L))
-                              )
-                          }
+                          if (res.isNotEmpty()) showQualities(link, page, title, res)
+                          else failDialog(link, page, title, err)
                       }
                   }.start()
               }
 
-              private fun showQualities(link: String, title: String, qs: List<Q>) {
-                  val labels = qs.map { it.label }.toTypedArray()
+              // Long-press on a link (for example a video thumbnail on YouTube).
+              private fun linkMenu(url: String) {
+                  dlg().setTitle(url.take(60))
+                      .setItems(arrayOf("Download video (choose quality)", "Open in new tab")) { _, i ->
+                          if (i == 0) {
+                              askDownloadFor(url, "Video")
+                          } else {
+                              newTab()
+                              showTab(tabs.size - 1)
+                              open(url)
+                          }
+                      }
+                      .show()
+              }
+
+              private fun failDialog(link: String, page: String, title: String, err: String) {
+                  val best = Q("Original quality (best)", "bv*+ba/b", false, 0L, "best", "best")
+                  dlg().setTitle("Could not read qualities")
+                      .setMessage(if (err.isEmpty()) "Unknown error" else err.take(400))
+                      .setPositiveButton("Download best") { _, _ -> enqueue(link, page, title, best) }
+                      .setNeutralButton("Update engine") { _, _ ->
+                          toast("Updating downloader engine...")
+                          Thread { updateEngine(true) }.start()
+                      }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+              }
+
+              private fun showQualities(link: String, page: String, title: String, qs: List<Q>) {
+                  val vid = vidOf(link)
+                  val labels = qs.map {
+                      when (qStatus(vid, it.key)) {
+                          2 -> "\u2714\u2714 " + it.label + "  (downloaded)"
+                          1 -> it.label + "  (downloading...)"
+                          else -> it.label
+                      }
+                  }.toTypedArray()
                   dlg().setTitle("Choose quality")
-                      .setItems(labels) { _, i -> enqueue(link, title, qs[i]) }
+                      .setItems(labels) { _, i ->
+                          val q = qs[i]
+                          when (qStatus(vid, q.key)) {
+                              2 -> toast("Already downloaded in this quality")
+                              1 -> toast("This quality is already downloading")
+                              else -> enqueue(link, page, title, q)
+                          }
+                      }
                       .show()
               }
 
@@ -1100,6 +1306,7 @@ jobs:
                       val json = JSONObject(out.substring(start))
                       val arr = json.optJSONArray("formats") ?: return emptyList()
                       val heights = java.util.TreeMap<Int, Long>()
+                      val fpsBy = java.util.HashMap<Int, Int>()
                       var audioBest = 0L
                       for (i in 0 until arr.length()) {
                           val f = arr.getJSONObject(i)
@@ -1109,6 +1316,8 @@ jobs:
                           val size = maxOf(f.optLong("filesize", 0L), f.optLong("filesize_approx", 0L))
                           if (vc != "none" && vc != "null" && h > 0) {
                               heights[h] = maxOf(heights[h] ?: 0L, size)
+                              val fp = f.optDouble("fps", 0.0).toInt()
+                              if (fp > (fpsBy[h] ?: 0)) fpsBy[h] = fp
                           } else if (vc == "none" && ac != "none" && ac != "null") {
                               audioBest = maxOf(audioBest, size)
                           }
@@ -1118,28 +1327,35 @@ jobs:
                       val top = heights.lastKey()
                       val ab = audioBest
                       fun sz(v: Long): String = if (v > 0) " - ~" + fmtSize(v + ab) else ""
+                      fun lab(h: Int): String {
+                          val fp = fpsBy[h] ?: 0
+                          return h.toString() + "p" + (if (fp > 30) fp.toString() else "")
+                      }
                       val topSize = heights[top] ?: 0L
-                      list.add(Q("Original quality (best) - " + top + "p" + sz(topSize), "bv*+ba/b", false, topSize + ab))
+                      list.add(Q("Original quality (best) - " + lab(top) + sz(topSize), "bv*+ba/b", false, topSize + ab, "h" + top, top.toString() + "p"))
                       for (h in heights.descendingKeySet()) {
                           if (h == top) continue
                           val v = heights[h] ?: 0L
-                          list.add(Q(h.toString() + "p" + sz(v), "bv*[height<=" + h + "]+ba/b[height<=" + h + "]", false, v + ab))
+                          list.add(Q(lab(h) + sz(v), "bv*[height<=" + h + "]+ba/b[height<=" + h + "]", false, v + ab, "h" + h, h.toString() + "p"))
                       }
-                      list.add(Q("Audio only (MP3)" + (if (ab > 0) " - ~" + fmtSize(ab) else ""), "", true, ab))
+                      list.add(Q("Audio only (MP3)" + (if (ab > 0) " - ~" + fmtSize(ab) else ""), "", true, ab, "mp3", "audio"))
                       return list
                   } finally {
                       cf.delete()
                   }
               }
 
-              private fun enqueue(link: String, title: String, q: Q) {
+              private fun enqueue(link: String, page: String, title: String, q: Q) {
                   val d = DlItem(title, 0, 0, null, null, "")
                   d.kind = 0
                   d.link = link
-                  d.page = link
+                  d.page = page
                   d.audio = q.audio
                   d.fmt = q.fmt
                   d.total = q.bytes
+                  d.vid = vidOf(link)
+                  d.qkey = q.key
+                  d.qtag = q.tag
                   items.add(0, d)
                   dlTab = 0
                   flyToDownload()
@@ -1236,7 +1452,8 @@ jobs:
                   try {
                       dir.mkdirs()
                       val req = YoutubeDLRequest(d.link)
-                      req.addOption("-o", dir.absolutePath + "/%(title).80s.%(ext)s")
+                      val tag = if (d.qtag.isEmpty()) "" else " [" + d.qtag + "]"
+                      req.addOption("-o", dir.absolutePath + "/%(title).80s" + tag + ".%(ext)s")
                       req.addOption("--no-playlist")
                       if (cookies != null) {
                           cf.writeText(cookies)
@@ -1548,6 +1765,7 @@ jobs:
                               .put("g", d.msg).put("n", d.name).put("i", d.id).put("k", d.kind).put("l", d.link)
                               .put("p", d.page).put("a", d.audio).put("f", d.fmt).put("ua", d.ua ?: "")
                               .put("z", d.total).put("d", d.done).put("r", d.progress)
+                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag)
                       )
                   }
                   prefs.edit().putString("dl", a.toString()).apply()
@@ -1573,6 +1791,9 @@ jobs:
                           it2.ua = if (ua.isEmpty()) null else ua
                           it2.total = o.optLong("z", 0L)
                           it2.done = o.optLong("d", 0L)
+                          it2.vid = o.optString("v")
+                          it2.qkey = o.optString("q")
+                          it2.qtag = o.optString("tg")
                           items.add(it2)
                       }
                   } catch (e: Exception) { }
