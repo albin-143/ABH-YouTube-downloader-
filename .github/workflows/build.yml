@@ -327,6 +327,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -371,6 +391,7 @@ jobs:
           dependencies {
               implementation("io.github.junkfood02.youtubedl-android:library:0.17.2")
               implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.2")
+              implementation("androidx.webkit:webkit:1.12.1")
           }
           EOF_FILE
           mkdir -p app/src/main
@@ -605,6 +626,9 @@ jobs:
           import android.view.animation.AccelerateDecelerateInterpolator
           import android.view.inputmethod.InputMethodManager
           import android.webkit.CookieManager
+          import androidx.webkit.ProfileStore
+          import androidx.webkit.WebViewCompat
+          import androidx.webkit.WebViewFeature
           import android.webkit.MimeTypeMap
           import android.webkit.URLUtil
           import android.webkit.ValueCallback
@@ -645,6 +669,7 @@ jobs:
 
           class Tab(val web: WebView) {
               var home = true
+              var profile = ""   // separate cookie/login storage for this tab (empty = shared default)
           }
 
           class DlItem(var title: String, var state: Int, var progress: Int, var uri: String?, var mime: String?, var msg: String) {
@@ -664,6 +689,7 @@ jobs:
               var vid = ""
               var qkey = ""
               var qtag = ""
+              var profile = ""   // tab profile whose cookies this download may use
           }
 
           class Q(val label: String, val fmt: String, val audio: Boolean, val bytes: Long, val key: String, val tag: String)
@@ -799,6 +825,11 @@ jobs:
 
                   setupFab()
                   restoreTabs()
+                  cleanupProfiles()
+                  if (!multiProfile && !prefs.getBoolean("mpWarned", false)) {
+                      prefs.edit().putBoolean("mpWarned", true).apply()
+                      toast("Separate logins per tab need a newer Android System WebView. Update it in Play Store.")
+                  }
                   applyTheme()
 
                   if (intent?.action == Intent.ACTION_SEND) {
@@ -928,11 +959,21 @@ jobs:
               }
 
               @SuppressLint("SetJavaScriptEnabled")
-              private fun newTab() {
+              // profile = null: brand new separate login space. profile = "": the shared default one.
+              private fun newTab(profile: String? = null) {
                   val w = WebView(this)
+                  var pname = profile ?: (if (multiProfile) "t" + System.currentTimeMillis() + tabs.size else "")
+                  if (pname.isNotEmpty()) {
+                      if (multiProfile) {
+                          try { WebViewCompat.setProfile(w, pname) } catch (e: Exception) { pname = "" }
+                      } else {
+                          pname = ""
+                      }
+                  }
+                  val pf = pname
                   applyWeb(w)
                   w.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
-                      startDirect(url, userAgent, contentDisposition, mimetype, w.url ?: url)
+                      startDirect(url, userAgent, contentDisposition, mimetype, w.url ?: url, pf)
                   }
                   w.webViewClient = object : WebViewClient() {
                       override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -985,7 +1026,9 @@ jobs:
                           }
                       }
                   }
-                  tabs.add(Tab(w))
+                  val tab = Tab(w)
+                  tab.profile = pf
+                  tabs.add(tab)
               }
 
               private fun forceDesktopViewport(w: WebView?) {
@@ -1057,6 +1100,7 @@ jobs:
                               val t = tabs.removeAt(cur)
                               content.removeView(t.web)
                               t.web.destroy()
+                              deleteProfileLater(t.profile)
                               showTab(minOf(cur, tabs.size - 1))
                           } else {
                               tabs[0].home = true
@@ -1082,7 +1126,7 @@ jobs:
                       for (i in 0 until tabs.size) {
                           val t = tabs[i]
                           val url = t.web.url ?: ""
-                          arr.put(JSONObject().put("home", t.home).put("url", url))
+                          arr.put(JSONObject().put("home", t.home).put("url", url).put("profile", t.profile))
                           if (url.isNotEmpty()) {
                               try {
                                   val b = Bundle()
@@ -1094,6 +1138,9 @@ jobs:
                               } catch (e: Exception) { }
                           }
                       }
+                      for (t in tabs) {
+                          try { cookiesFor(t.profile).flush() } catch (e: Exception) { }
+                      }
                       prefs.edit().putString("tabs", arr.toString()).putInt("cur", cur).apply()
                   } catch (e: Exception) { }
               }
@@ -1103,7 +1150,7 @@ jobs:
                       val arr = JSONArray(prefs.getString("tabs", "[]"))
                       for (i in 0 until arr.length()) {
                           val o = arr.getJSONObject(i)
-                          newTab()
+                          newTab(o.optString("profile", ""))
                           val t = tabs[tabs.size - 1]
                           t.home = o.optBoolean("home", true)
                           val url = o.optString("url")
@@ -1127,6 +1174,42 @@ jobs:
                   } catch (e: Exception) { }
                   if (tabs.isEmpty()) newTab()
                   showTab(prefs.getInt("cur", 0).coerceIn(0, tabs.size - 1))
+              }
+
+              // ---------- separate logins per tab ----------
+
+              private val multiProfile: Boolean by lazy {
+                  try { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) } catch (e: Exception) { false }
+              }
+
+              private fun cookiesFor(profile: String): CookieManager {
+                  if (profile.isNotEmpty() && multiProfile) {
+                      try {
+                          return ProfileStore.getInstance().getOrCreateProfile(profile).cookieManager
+                      } catch (e: Exception) { }
+                  }
+                  return CookieManager.getInstance()
+              }
+
+              // Remove the stored logins of tabs that no longer exist.
+              private fun cleanupProfiles() {
+                  if (!multiProfile) return
+                  try {
+                      val store = ProfileStore.getInstance()
+                      val used = tabs.map { it.profile }.toSet()
+                      for (n in store.allProfileNames) {
+                          if (n != "Default" && n !in used) {
+                              try { store.deleteProfile(n) } catch (e: Exception) { }
+                          }
+                      }
+                  } catch (e: Exception) { }
+              }
+
+              private fun deleteProfileLater(name: String) {
+                  if (name.isEmpty() || !multiProfile) return
+                  Handler(Looper.getMainLooper()).postDelayed({
+                      try { ProfileStore.getInstance().deleteProfile(name) } catch (e: Exception) { }
+                  }, 2000)
               }
 
               // ---------- pages ----------
@@ -1450,6 +1533,7 @@ jobs:
                   d.vid = vidOf(link)
                   d.qkey = q.key
                   d.qtag = q.tag
+                  d.profile = tabs.getOrNull(cur)?.profile ?: ""
                   items.add(0, d)
                   dlTab = 0
                   flyToDownload()
@@ -1464,7 +1548,7 @@ jobs:
                   val g = d.gen
                   refreshDl()
                   if (d.kind == 0) {
-                      val ck = cookieText(d.link)
+                      val ck = cookieText(d.link, d.profile)
                       exec.execute { runDownload(d, ck, g) }
                   } else {
                       Thread { runDirect(d, g) }.start()
@@ -1520,11 +1604,11 @@ jobs:
                   open(u)
               }
 
-              private fun cookieText(link: String): String? {
+              private fun cookieText(link: String, profile: String): String? {
                   if (!cookiesOn) return null
                   val host = Uri.parse(link).host ?: return null
                   if (!host.endsWith("youtube.com") && host != "youtu.be") return null
-                  val raw = CookieManager.getInstance().getCookie("https://www.youtube.com") ?: return null
+                  val raw = cookiesFor(profile).getCookie("https://www.youtube.com") ?: return null
                   val sb = StringBuilder("# Netscape HTTP Cookie File\n")
                   for (part in raw.split(";")) {
                       val kv = part.trim().split("=", limit = 2)
@@ -1737,12 +1821,13 @@ jobs:
 
               // ---------- direct file downloads (links inside web pages) ----------
 
-              private fun startDirect(url: String, ua: String?, cd: String?, mimeHint: String?, page: String) {
+              private fun startDirect(url: String, ua: String?, cd: String?, mimeHint: String?, page: String, profile: String) {
                   val name = URLUtil.guessFileName(url, cd, mimeHint)
                   val d = DlItem(name.substringBeforeLast("."), 0, 0, null, null, "")
                   d.kind = 1
                   d.link = url
                   d.page = page
+                  d.profile = profile
                   d.ua = ua
                   d.name = name
                   items.add(0, d)
@@ -1752,7 +1837,7 @@ jobs:
                   startRun(d)
               }
 
-              private fun openFollow(start: String, ua: String?, offset: Long): HttpURLConnection {
+              private fun openFollow(start: String, ua: String?, offset: Long, profile: String): HttpURLConnection {
                   var url = start
                   for (hop in 0..10) {
                       val c = URL(url).openConnection() as HttpURLConnection
@@ -1760,7 +1845,7 @@ jobs:
                       c.connectTimeout = 20000
                       c.readTimeout = 30000
                       if (ua != null) c.setRequestProperty("User-Agent", ua)
-                      val ck = CookieManager.getInstance().getCookie(url)
+                      val ck = cookiesFor(profile).getCookie(url)
                       if (ck != null) c.setRequestProperty("Cookie", ck)
                       if (offset > 0) c.setRequestProperty("Range", "bytes=" + offset + "-")
                       val code = c.responseCode
@@ -1785,7 +1870,7 @@ jobs:
                       dir.mkdirs()
                       val part = File(dir, d.name)
                       var offset = if (part.exists()) part.length() else 0L
-                      val conn = openFollow(d.link, d.ua, offset)
+                      val conn = openFollow(d.link, d.ua, offset, d.profile)
                       val append = offset > 0 && conn.responseCode == 206
                       if (!append) offset = 0L
                       val len = conn.contentLengthLong
@@ -1859,7 +1944,7 @@ jobs:
                               .put("g", d.msg).put("n", d.name).put("i", d.id).put("k", d.kind).put("l", d.link)
                               .put("p", d.page).put("a", d.audio).put("f", d.fmt).put("ua", d.ua ?: "")
                               .put("z", d.total).put("d", d.done).put("r", d.progress)
-                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag)
+                              .put("v", d.vid).put("q", d.qkey).put("tg", d.qtag).put("pf", d.profile)
                       )
                   }
                   prefs.edit().putString("dl", a.toString()).apply()
@@ -1888,6 +1973,7 @@ jobs:
                           it2.vid = o.optString("v")
                           it2.qkey = o.optString("q")
                           it2.qtag = o.optString("tg")
+                          it2.profile = o.optString("pf")
                           items.add(it2)
                       }
                   } catch (e: Exception) { }
