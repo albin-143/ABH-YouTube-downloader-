@@ -287,6 +287,46 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -636,6 +676,7 @@ jobs:
               private val items = mutableListOf<DlItem>()
               private var cur = 0
               private var dlTab = 0
+              @Volatile private var qPid = ""
               private var ready = false
               private var desktop = false
               private var theme = 0
@@ -1288,7 +1329,6 @@ jobs:
                   return 0
               }
 
-              // One tap = download the original (best) quality. No quality list.
               private fun askDownload() {
                   val t = tabs[cur]
                   val page = if (t.home) null else t.web.url
@@ -1299,11 +1339,104 @@ jobs:
                       return
                   }
                   val link = normalUrl(page)
-                  val st = qStatus(vidOf(link), "best")
-                  if (st == 2) { toast("\u2714\u2714 Already downloaded"); return }
-                  if (st == 1) { toast("Already in Downloads"); return }
-                  val q = Q("Original quality (best)", "bv*+ba/b", false, 0L, "best", "")
-                  enqueue(link, page, t.web.title ?: "Video", q)
+                  val title = t.web.title ?: "Video"
+                  showQualities(link, page, title, standardQualities())
+              }
+
+              // Used when the exact list cannot be read: the downloader picks the best quality up to the chosen height.
+              private fun standardQualities(): List<Q> {
+                  val list = mutableListOf<Q>()
+                  list.add(Q("Original quality (best)", "bv*+ba/b", false, 0L, "best", ""))
+                  for (h in listOf(2160, 1440, 1080, 720, 480, 360, 240, 144)) {
+                      list.add(Q(h.toString() + "p (or the closest lower)", "bv*[height<=" + h + "]+ba/b[height<=" + h + "]", false, 0L, "h" + h, "auto"))
+                  }
+                  list.add(Q("Audio only (MP3)", "", true, 0L, "mp3", "audio"))
+                  return list
+              }
+
+              private fun showQualities(link: String, page: String, title: String, qs: List<Q>) {
+                  val vid = vidOf(link)
+                  val labels = qs.map {
+                      when (qStatus(vid, it.key)) {
+                          2 -> "\u2714\u2714 " + it.label + "  (downloaded)"
+                          1 -> it.label + "  (downloading...)"
+                          else -> it.label
+                      }
+                  }.toTypedArray()
+                  dlg().setTitle("Choose quality")
+                      .setItems(labels) { _, i ->
+                          val q = qs[i]
+                          when (qStatus(vid, q.key)) {
+                              2 -> toast("Already downloaded in this quality")
+                              1 -> toast("This quality is already downloading")
+                              else -> enqueue(link, page, title, q)
+                          }
+                      }
+                      .show()
+              }
+
+              private fun fetchQualities(link: String, cookies: String?): List<Q> {
+                  val cf = File(cacheDir, "cookies_q.txt")
+                  val pid = "q" + System.nanoTime()
+                  qPid = pid
+                  val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+                  Thread {
+                      try { Thread.sleep(30000) } catch (e: Exception) { }
+                      if (!finished.get()) {
+                          try { YoutubeDL.getInstance().destroyProcessById(pid) } catch (e: Exception) { }
+                      }
+                  }.start()
+                  try {
+                      val req = YoutubeDLRequest(link)
+                      req.addOption("--dump-single-json")
+                      req.addOption("--no-playlist")
+                      if (cookies != null) {
+                          cf.writeText(cookies)
+                          req.addOption("--cookies", cf.absolutePath)
+                      }
+                      val out = YoutubeDL.getInstance().execute(req, pid).out
+                      val jsonLine = out.lines().lastOrNull { it.trimStart().startsWith("{") } ?: return emptyList()
+                      val json = JSONObject(jsonLine)
+                      val arr = json.optJSONArray("formats") ?: return emptyList()
+                      val heights = java.util.TreeMap<Int, Long>()
+                      val fpsBy = java.util.HashMap<Int, Int>()
+                      var audioBest = 0L
+                      for (i in 0 until arr.length()) {
+                          val f = arr.getJSONObject(i)
+                          val vc = f.optString("vcodec", "none")
+                          val ac = f.optString("acodec", "none")
+                          val h = f.optInt("height", 0)
+                          val size = maxOf(f.optLong("filesize", 0L), f.optLong("filesize_approx", 0L))
+                          if (vc != "none" && vc != "null" && h > 0) {
+                              heights[h] = maxOf(heights[h] ?: 0L, size)
+                              val fp = f.optDouble("fps", 0.0).toInt()
+                              if (fp > (fpsBy[h] ?: 0)) fpsBy[h] = fp
+                          } else if (vc == "none" && ac != "none" && ac != "null") {
+                              audioBest = maxOf(audioBest, size)
+                          }
+                      }
+                      if (heights.isEmpty()) return emptyList()
+                      val list = mutableListOf<Q>()
+                      val top = heights.lastKey()
+                      val ab = audioBest
+                      fun sz(v: Long): String = if (v > 0) " - ~" + fmtSize(v + ab) else ""
+                      fun lab(h: Int): String {
+                          val fp = fpsBy[h] ?: 0
+                          return h.toString() + "p" + (if (fp > 30) fp.toString() else "")
+                      }
+                      val topSize = heights[top] ?: 0L
+                      list.add(Q("Original quality (best) - " + lab(top) + sz(topSize), "bv*+ba/b", false, topSize + ab, "best", ""))
+                      for (h in heights.descendingKeySet()) {
+                          if (h == top) continue
+                          val v = heights[h] ?: 0L
+                          list.add(Q(lab(h) + sz(v), "bv*[height<=" + h + "]+ba/b[height<=" + h + "]", false, v + ab, "h" + h, h.toString() + "p"))
+                      }
+                      list.add(Q("Audio only (MP3)" + (if (ab > 0) " - ~" + fmtSize(ab) else ""), "", true, ab, "mp3", "audio"))
+                      return list
+                  } finally {
+                      finished.set(true)
+                      cf.delete()
+                  }
               }
 
               private fun enqueue(link: String, page: String, title: String, q: Q) {
@@ -1413,7 +1546,7 @@ jobs:
                   try {
                       dir.mkdirs()
                       val req = YoutubeDLRequest(d.link)
-                      val tag = if (d.qtag.isEmpty()) "" else " [" + d.qtag + "]"
+                      val tag = if (d.qtag.isEmpty() || d.qtag == "audio") "" else if (d.qtag == "auto") " [%(height)sp]" else " [" + d.qtag + "]"
                       req.addOption("-o", dir.absolutePath + "/%(title).80s" + tag + ".%(ext)s")
                       req.addOption("--no-playlist")
                       if (cookies != null) {
