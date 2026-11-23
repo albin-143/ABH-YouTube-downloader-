@@ -347,6 +347,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -972,6 +992,18 @@ jobs:
                   }
                   val pf = pname
                   applyWeb(w)
+                  w.setOnLongClickListener {
+                      val r = w.hitTestResult
+                      val ex = r.extra
+                      if ((r.type == WebView.HitTestResult.SRC_ANCHOR_TYPE || r.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) &&
+                          ex != null && ex.startsWith("http") && isYt(ex) && ytId(ex).isNotEmpty()
+                      ) {
+                          longPressVideo(ex)
+                          true
+                      } else {
+                          false
+                      }
+                  }
                   w.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
                       startDirect(url, userAgent, contentDisposition, mimetype, w.url ?: url, pf)
                   }
@@ -1456,6 +1488,42 @@ jobs:
                           }
                       }
                       .show()
+              }
+
+              // Long-press on a YouTube video: read that video's own qualities and show only those.
+              private fun longPressVideo(url: String) {
+                  if (!ready) { toast("Downloader is starting, try again in a moment"); return }
+                  val link = normalUrl(url)
+                  val ck = cookieText(link, tabs.getOrNull(cur)?.profile ?: "")
+                  val wait = dlg().setTitle("Please wait")
+                      .setMessage("Checking this video's qualities...")
+                      .setCancelable(true)
+                      .setOnCancelListener {
+                          try { YoutubeDL.getInstance().destroyProcessById(qPid) } catch (e: Exception) { }
+                      }
+                      .show()
+                  Thread {
+                      var err = ""
+                      val res: List<Q> = try {
+                          fetchQualities(link, ck)
+                      } catch (e: Exception) {
+                          err = e.message ?: ""
+                          emptyList()
+                      }
+                      runOnUiThread {
+                          if (!wait.isShowing) return@runOnUiThread
+                          wait.dismiss()
+                          if (res.isNotEmpty()) {
+                              showQualities(link, url, "Video", res)
+                          } else {
+                              dlg().setTitle("Could not read qualities")
+                                  .setMessage(if (err.isEmpty()) "The downloader could not read this video's quality list." else err.take(500))
+                                  .setPositiveButton("Standard list") { _, _ -> showQualities(link, url, "Video", standardQualities()) }
+                                  .setNegativeButton("Cancel", null)
+                                  .show()
+                          }
+                      }
+                  }.start()
               }
 
               private fun fetchQualities(link: String, cookies: String?): List<Q> {
