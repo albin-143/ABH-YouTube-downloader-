@@ -387,6 +387,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -1484,9 +1504,7 @@ jobs:
                       toast("Open a video first, then tap download")
                       return
                   }
-                  val link = normalUrl(page)
-                  val title = t.web.title ?: "Video"
-                  showQualities(link, page, title, standardQualities())
+                  longPressVideo(page, t.web.title ?: "Video")
               }
 
               // Used when the exact list cannot be read: the downloader picks the best quality up to the chosen height.
@@ -1522,7 +1540,7 @@ jobs:
               }
 
               // Long-press on a YouTube video: read that video's own qualities and show only those.
-              private fun longPressVideo(url: String) {
+              private fun longPressVideo(url: String, title: String = "Video") {
                   if (!ready) { toast("Downloader is starting, try again in a moment"); return }
                   val link = normalUrl(url)
                   val ck = cookieText(link, tabs.getOrNull(cur)?.profile ?: "")
@@ -1545,11 +1563,11 @@ jobs:
                           if (!wait.isShowing) return@runOnUiThread
                           wait.dismiss()
                           if (res.isNotEmpty()) {
-                              showQualities(link, url, "Video", res)
+                              showQualities(link, url, title, res)
                           } else {
                               dlg().setTitle("Could not read qualities")
                                   .setMessage(if (err.isEmpty()) "The downloader could not read this video's quality list." else err.take(500))
-                                  .setPositiveButton("Standard list") { _, _ -> showQualities(link, url, "Video", standardQualities()) }
+                                  .setPositiveButton("Standard list") { _, _ -> showQualities(link, url, title, standardQualities()) }
                                   .setNegativeButton("Cancel", null)
                                   .show()
                           }
