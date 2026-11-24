@@ -447,6 +447,46 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -492,6 +532,7 @@ jobs:
               implementation("io.github.junkfood02.youtubedl-android:library:0.17.2")
               implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.2")
               implementation("androidx.webkit:webkit:1.12.1")
+              implementation("com.squareup.okhttp3:okhttp:4.12.0")
           }
           EOF_FILE
           mkdir -p app/src/main
@@ -722,7 +763,9 @@ jobs:
           import android.os.Looper
           import android.os.Parcel
           import android.provider.DocumentsContract
+          import android.util.Base64
           import android.provider.MediaStore
+          import android.text.InputType
           import android.text.TextUtils
           import android.view.ContextThemeWrapper
           import android.view.Gravity
@@ -764,6 +807,11 @@ jobs:
           import java.net.HttpURLConnection
           import java.net.URL
           import java.util.Locale
+          import java.util.concurrent.TimeUnit
+          import okhttp3.MediaType.Companion.toMediaType
+          import okhttp3.OkHttpClient
+          import okhttp3.Request
+          import okhttp3.RequestBody.Companion.toRequestBody
           import java.util.concurrent.Executors
           import kotlin.math.abs
 
@@ -774,6 +822,8 @@ jobs:
           const val DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
           const val REQ_FILE = 77
           const val REQ_TREE = 78
+          const val REQ_UPLOAD_TREE = 79
+          const val REQ_GH_TREE = 80
 
           class Tab(val web: WebView) {
               var home = true
@@ -1155,13 +1205,31 @@ jobs:
                       ): Boolean {
                           fileCb?.onReceiveValue(null)
                           fileCb = filePathCallback
-                          return try {
-                              startActivityForResult(fileChooserParams!!.createIntent(), REQ_FILE)
-                              true
-                          } catch (e: Exception) {
-                              fileCb = null
-                              false
+                          val params = fileChooserParams
+                          // mode 2 = the page asked for a folder (webkitdirectory)
+                          if (params != null && params.mode == 2) {
+                              pickUploadFolder()
+                              return true
                           }
+                          dlg().setTitle("Upload")
+                              .setItems(arrayOf("Choose files", "Choose a whole folder")) { _, i ->
+                                  try {
+                                      if (i == 0 && params != null) {
+                                          startActivityForResult(params.createIntent(), REQ_FILE)
+                                      } else {
+                                          pickUploadFolder()
+                                      }
+                                  } catch (e: Exception) {
+                                      fileCb?.onReceiveValue(null)
+                                      fileCb = null
+                                  }
+                              }
+                              .setOnCancelListener {
+                                  fileCb?.onReceiveValue(null)
+                                  fileCb = null
+                              }
+                              .show()
+                          return true
                       }
                   }
                   val tab = Tab(w)
@@ -1492,6 +1560,212 @@ jobs:
                   showTab(prefs.getInt("cur", 0).coerceIn(0, tabs.size - 1))
               }
 
+              // ---------- upload a whole project folder to GitHub (keeps the sub-folders) ----------
+
+              private val http: OkHttpClient by lazy {
+                  OkHttpClient.Builder()
+                      .connectTimeout(30, TimeUnit.SECONDS)
+                      .readTimeout(120, TimeUnit.SECONDS)
+                      .writeTimeout(120, TimeUnit.SECONDS)
+                      .build()
+              }
+              private var ghRepo = ""
+              private var ghBranch = "main"
+              private var ghSub = ""
+              private var ghMsg = ""
+              private var ghToken = ""
+              @Volatile private var ghCancel = false
+
+              private fun showGithubUpload() {
+                  val box = LinearLayout(this)
+                  box.orientation = LinearLayout.VERTICAL
+                  box.setPadding(dp(20), dp(8), dp(20), dp(0))
+                  val info = TextView(this)
+                  info.text = "Needs a GitHub token with Contents: Read and write. Everything is sent as ONE commit and the folder structure is kept."
+                  info.textSize = 12f
+                  info.setTextColor(col.sec)
+                  box.addView(info)
+                  fun field(hint: String, value: String, secret: Boolean): EditText {
+                      val e = EditText(this)
+                      e.hint = hint
+                      e.setText(value)
+                      e.setSingleLine(true)
+                      e.setTextColor(col.text)
+                      e.setHintTextColor(col.sec)
+                      if (secret) e.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                      box.addView(e)
+                      return e
+                  }
+                  var guess = prefs.getString("ghRepo", "") ?: ""
+                  val curUrl = tabs.getOrNull(cur)?.let { if (it.home) null else it.web.url }
+                  if (curUrl != null) {
+                      val m = Regex("github\\.com/([^/]+)/([^/?#]+)").find(curUrl)
+                      if (m != null && m.groupValues[1] !in setOf("settings", "orgs", "login", "marketplace", "features")) {
+                          guess = m.groupValues[1] + "/" + m.groupValues[2]
+                      }
+                  }
+                  val tokenE = field("GitHub token", prefs.getString("ghToken", "") ?: "", true)
+                  val repoE = field("Repository (owner/name)", guess, false)
+                  val branchE = field("Branch", prefs.getString("ghBranch", "main") ?: "main", false)
+                  val subE = field("Folder inside the repo (optional)", "", false)
+                  val msgE = field("Commit message", "Upload from ABH Browser", false)
+                  val forget = TextView(this)
+                  forget.text = "Forget saved token"
+                  forget.textSize = 13f
+                  forget.setTextColor(0xFF2D7FF9.toInt())
+                  forget.setPadding(0, dp(10), 0, dp(6))
+                  forget.setOnClickListener {
+                      prefs.edit().remove("ghToken").apply()
+                      tokenE.setText("")
+                      toast("Token removed from this phone")
+                  }
+                  box.addView(forget)
+                  val sv = ScrollView(this)
+                  sv.addView(box)
+                  dlg().setTitle("Upload folder to GitHub")
+                      .setView(sv)
+                      .setPositiveButton("Choose folder") { _, _ ->
+                          ghToken = tokenE.text.toString().trim()
+                          val rm = Regex("([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)").find(repoE.text.toString().trim().removePrefix("https://github.com/"))
+                          ghRepo = if (rm != null) rm.groupValues[1] + "/" + rm.groupValues[2].removeSuffix(".git") else ""
+                          ghBranch = branchE.text.toString().trim().ifEmpty { "main" }
+                          ghSub = subE.text.toString().trim().trim('/')
+                          ghMsg = msgE.text.toString().trim().ifEmpty { "Upload from ABH Browser" }
+                          if (ghToken.isEmpty() || ghRepo.isEmpty()) {
+                              toast("Enter the token and the repository like owner/name")
+                          } else {
+                              prefs.edit().putString("ghToken", ghToken).putString("ghRepo", ghRepo).putString("ghBranch", ghBranch).apply()
+                              val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                              i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                              startActivityForResult(i, REQ_GH_TREE)
+                          }
+                      }
+                      .setNeutralButton("Get token") { _, _ ->
+                          newTab()
+                          showTab(tabs.size - 1)
+                          open("https://github.com/settings/personal-access-tokens/new")
+                      }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+              }
+
+              private fun ghUpload(tree: Uri) {
+                  ghCancel = false
+                  val box = dlg().setTitle("Uploading to GitHub")
+                      .setMessage("Reading folder...")
+                      .setCancelable(false)
+                      .setNegativeButton("Cancel") { _, _ -> ghCancel = true }
+                      .create()
+                  box.show()
+                  fun say(s: String) = runOnUiThread { box.setMessage(s) }
+                  Thread {
+                      try {
+                          val files = ArrayList<Pair<String, Uri>>()
+                          ghCollect(tree, DocumentsContract.getTreeDocumentId(tree), "", files)
+                          if (files.isEmpty()) throw Exception("The folder has no files")
+                          if (files.size > 3000) throw Exception("Too many files (" + files.size + "). The limit is 3000.")
+                          val api = "https://api.github.com/repos/" + ghRepo
+                          say("Reading branch " + ghBranch + "...")
+                          val ref = ghCall("GET", api + "/git/ref/heads/" + ghBranch, null)
+                          val headSha = ref.getJSONObject("object").getString("sha")
+                          val commit = ghCall("GET", api + "/git/commits/" + headSha, null)
+                          val baseTree = commit.getJSONObject("tree").getString("sha")
+                          val entries = JSONArray()
+                          val skipped = ArrayList<String>()
+                          var n = 0
+                          for ((path, uri) in files) {
+                              if (ghCancel) throw Exception("Cancelled")
+                              n++
+                              say("Uploading " + n + " / " + files.size + "\n" + path)
+                              val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                  ?: throw Exception("Cannot read " + path)
+                              if (bytes.size > 15 * 1024 * 1024) {
+                                  skipped.add(path)
+                                  continue
+                              }
+                              val body = JSONObject()
+                                  .put("content", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                                  .put("encoding", "base64")
+                              val blob = ghCall("POST", api + "/git/blobs", body)
+                              val full = if (ghSub.isEmpty()) path else ghSub + "/" + path
+                              entries.put(
+                                  JSONObject().put("path", full).put("mode", "100644").put("type", "blob").put("sha", blob.getString("sha"))
+                              )
+                          }
+                          if (entries.length() == 0) throw Exception("No file could be uploaded")
+                          say("Creating the commit...")
+                          val tr = ghCall("POST", api + "/git/trees", JSONObject().put("base_tree", baseTree).put("tree", entries))
+                          val nc = ghCall(
+                              "POST", api + "/git/commits",
+                              JSONObject().put("message", ghMsg).put("tree", tr.getString("sha")).put("parents", JSONArray().put(headSha))
+                          )
+                          ghCall("PATCH", api + "/git/refs/heads/" + ghBranch, JSONObject().put("sha", nc.getString("sha")))
+                          val ok = entries.length()
+                          runOnUiThread {
+                              box.dismiss()
+                              var msg = ok.toString() + " files uploaded to " + ghRepo + " (" + ghBranch + ") with their folders."
+                              if (skipped.isNotEmpty()) msg += "\n\nSkipped " + skipped.size + " file(s) bigger than 15 MB:\n" + skipped.take(5).joinToString("\n")
+                              dlg().setTitle("Done").setMessage(msg).setPositiveButton("OK", null).show()
+                          }
+                      } catch (e: Exception) {
+                          runOnUiThread {
+                              box.dismiss()
+                              var msg = (e.message ?: e.toString()).take(500)
+                              if (msg.contains("404")) msg += "\n\nCheck the repository name, the branch name and that the token can write to this repository. The repository must already have at least one commit."
+                              dlg().setTitle("Upload failed").setMessage(msg).setPositiveButton("OK", null).show()
+                          }
+                      }
+                  }.start()
+              }
+
+              private fun ghCollect(tree: Uri, docId: String, prefix: String, out: MutableList<Pair<String, Uri>>) {
+                  class Entry(val id: String, val name: String, val dir: Boolean)
+                  val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
+                  val list = ArrayList<Entry>()
+                  contentResolver.query(
+                      children,
+                      arrayOf(
+                          DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                          DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                          DocumentsContract.Document.COLUMN_MIME_TYPE
+                      ),
+                      null, null, null
+                  )?.use { c ->
+                      while (c.moveToNext()) {
+                          list.add(Entry(c.getString(0), c.getString(1) ?: "", c.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR))
+                      }
+                  }
+                  for (e in list) {
+                      if (e.name.isEmpty()) continue
+                      if (e.dir) {
+                          if (e.name == ".git") continue
+                          ghCollect(tree, e.id, prefix + e.name + "/", out)
+                      } else {
+                          out.add(Pair(prefix + e.name, DocumentsContract.buildDocumentUriUsingTree(tree, e.id)))
+                      }
+                  }
+              }
+
+              private fun ghCall(method: String, url: String, body: JSONObject?): JSONObject {
+                  val rb = body?.toString()?.toRequestBody("application/json".toMediaType())
+                  val req = Request.Builder().url(url)
+                      .header("Authorization", "Bearer " + ghToken)
+                      .header("Accept", "application/vnd.github+json")
+                      .header("X-GitHub-Api-Version", "2022-11-28")
+                      .header("User-Agent", "ABH-Browser")
+                      .method(method, rb)
+                      .build()
+                  http.newCall(req).execute().use { r ->
+                      val txt = r.body?.string() ?: ""
+                      if (!r.isSuccessful) {
+                          var msg = txt
+                          try { msg = JSONObject(txt).optString("message", txt) } catch (e: Exception) { }
+                          throw Exception("GitHub " + r.code + ": " + msg.take(300))
+                      }
+                      return JSONObject(txt)
+                  }
+              }
+
               // ---------- separate logins per tab ----------
 
               private val multiProfile: Boolean by lazy {
@@ -1572,8 +1846,60 @@ jobs:
                           updateSettingsUi()
                           toast("Download folder changed")
                       }
+                  } else if (requestCode == REQ_GH_TREE) {
+                      val u = data?.data
+                      if (resultCode == RESULT_OK && u != null) ghUpload(u)
+                  } else if (requestCode == REQ_UPLOAD_TREE) {
+                      val u = data?.data
+                      val cb = fileCb
+                      fileCb = null
+                      if (resultCode == RESULT_OK && u != null) {
+                          toast("Reading folder...")
+                          Thread {
+                              val list = ArrayList<Uri>()
+                              try {
+                                  collectFiles(u, DocumentsContract.getTreeDocumentId(u), list)
+                              } catch (e: Exception) { }
+                              runOnUiThread {
+                                  if (list.isEmpty()) {
+                                      toast("No files found in that folder")
+                                      cb?.onReceiveValue(null)
+                                  } else {
+                                      toast(list.size.toString() + " files selected")
+                                      cb?.onReceiveValue(list.toTypedArray())
+                                  }
+                              }
+                          }.start()
+                      } else {
+                          cb?.onReceiveValue(null)
+                      }
                   } else {
                       super.onActivityResult(requestCode, resultCode, data)
+                  }
+              }
+
+              private fun pickUploadFolder() {
+                  val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                  i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                  startActivityForResult(i, REQ_UPLOAD_TREE)
+              }
+
+              // All files inside a folder, including sub-folders (up to 2000 files).
+              private fun collectFiles(tree: Uri, docId: String, out: MutableList<Uri>) {
+                  val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
+                  val ids = ArrayList<Pair<String, Boolean>>()
+                  contentResolver.query(
+                      children,
+                      arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_MIME_TYPE),
+                      null, null, null
+                  )?.use { c ->
+                      while (c.moveToNext()) {
+                          ids.add(Pair(c.getString(0), c.getString(1) == DocumentsContract.Document.MIME_TYPE_DIR))
+                      }
+                  }
+                  for ((id, isDir) in ids) {
+                      if (out.size >= 2000) return
+                      if (isDir) collectFiles(tree, id, out) else out.add(DocumentsContract.buildDocumentUriUsingTree(tree, id))
                   }
               }
 
@@ -1652,6 +1978,7 @@ jobs:
                   pm.menu.add(0, 4, 3, "Share link")
                   pm.menu.add(0, 5, 4, "Settings")
                   pm.menu.add(0, 6, 5, "Rotate screen")
+                  pm.menu.add(0, 7, 6, "Upload folder to GitHub")
                   pm.setOnMenuItemClickListener {
                       when (it.itemId) {
                           1 -> toggleDesktop()
@@ -1675,6 +2002,7 @@ jobs:
                           }
                           5 -> showPage(setPage)
                           6 -> chooseOrientation()
+                          7 -> showGithubUpload()
                       }
                       true
                   }
