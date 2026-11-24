@@ -407,6 +407,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           EOF_FILE
+          cat > settings.gradle.kts <<'EOF_FILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ABHBrowser"
+          include(":app")
+          EOF_FILE
+          cat > build.gradle.kts <<'EOF_FILE'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_FILE
           mkdir -p app
           cat > app/build.gradle.kts <<'EOF_FILE'
           plugins {
@@ -560,7 +580,7 @@ jobs:
 
               <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
 
-                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                  <LinearLayout android:id="@+id/topBar" android:layout_width="match_parent" android:layout_height="wrap_content"
                       android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
                       <EditText android:id="@+id/url" android:tag="pill" android:layout_height="44dp" android:background="@drawable/bg_pill" android:hint="Search or type URL" android:textSize="16sp" android:singleLine="true" android:inputType="textUri" android:imeOptions="actionGo" android:paddingStart="18dp" android:paddingEnd="18dp" android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="4dp"/>
                       <ImageButton android:id="@+id/reload" android:layout_width="44dp" android:layout_height="44dp" android:src="@drawable/ic_reload" android:contentDescription="reload" android:background="?android:attr/selectableItemBackgroundBorderless"/>
@@ -665,8 +685,13 @@ jobs:
           import android.content.ContentUris
           import android.content.ContentValues
           import android.content.Intent
+          import android.content.pm.ActivityInfo
           import android.content.res.Configuration
+          import android.graphics.Bitmap
+          import android.graphics.BitmapFactory
+          import android.graphics.Canvas
           import android.graphics.Color
+          import android.graphics.Matrix
           import android.graphics.Typeface
           import android.graphics.drawable.GradientDrawable
           import android.net.Uri
@@ -678,7 +703,9 @@ jobs:
           import android.os.Parcel
           import android.provider.DocumentsContract
           import android.provider.MediaStore
+          import android.text.TextUtils
           import android.view.ContextThemeWrapper
+          import android.view.Gravity
           import android.view.HapticFeedbackConstants
           import android.view.MotionEvent
           import android.view.View
@@ -730,6 +757,8 @@ jobs:
           class Tab(val web: WebView) {
               var home = true
               var profile = ""   // separate cookie/login storage for this tab (empty = shared default)
+              var id = System.nanoTime().toString()
+              var thumb: Bitmap? = null   // last screen of this tab
           }
 
           class DlItem(var title: String, var state: Int, var progress: Int, var uri: String?, var mime: String?, var msg: String) {
@@ -762,6 +791,8 @@ jobs:
               private val items = mutableListOf<DlItem>()
               private var cur = 0
               private var dlTab = 0
+              private var barHidden = false
+              private var lastBarToggle = 0L
               @Volatile private var qPid = ""
               private var ready = false
               private var desktop = false
@@ -811,6 +842,7 @@ jobs:
                   theme = prefs.getInt("theme", 0)
                   desktop = prefs.getBoolean("desktop", false)
                   cookiesOn = prefs.getBoolean("cookies", false)
+                  applyOrientation(prefs.getInt("orient", 0))
                   loadItems()
 
                   dlAdapter = DlAdapter()
@@ -986,6 +1018,7 @@ jobs:
 
               override fun onConfigurationChanged(newConfig: Configuration) {
                   super.onConfigurationChanged(newConfig)
+                  if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE && barHidden) setTopBar(true)
                   if (theme == 0) applyTheme()
               }
 
@@ -1032,6 +1065,7 @@ jobs:
                   }
                   val pf = pname
                   applyWeb(w)
+                  w.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY -> onWebScroll(w, scrollY, oldScrollY) }
                   w.setOnLongClickListener {
                       val r = w.hitTestResult
                       val ex = r.extra
@@ -1137,6 +1171,8 @@ jobs:
               }
 
               private fun showTab(i: Int) {
+                  val leaving = tabs.getOrNull(cur)
+                  if (leaving != null && cur != i) captureThumb(leaving)
                   cur = i
                   for (j in content.childCount - 1 downTo 0) {
                       if (content.getChildAt(j) is WebView) content.removeViewAt(j)
@@ -1150,6 +1186,7 @@ jobs:
 
               private fun refresh() {
                   val t = tabs[cur]
+                  if (barHidden) setTopBar(true)
                   home.visibility = if (t.home) View.VISIBLE else View.GONE
                   urlBox.setText(if (t.home) "" else (t.web.url ?: ""))
                   tabCount.text = tabs.size.toString()
@@ -1175,25 +1212,195 @@ jobs:
               }
 
               private fun showTabs() {
-                  val names = tabs.map { if (it.home) "Home" else (it.web.title ?: it.web.url ?: "Tab") }.toTypedArray()
-                  dlg().setTitle("Tabs")
-                      .setItems(names) { _, i -> showTab(i) }
-                      .setNeutralButton("Close this tab") { _, _ ->
-                          if (tabs.size > 1) {
-                              val t = tabs.removeAt(cur)
-                              content.removeView(t.web)
-                              t.web.destroy()
-                              deleteProfileLater(t.profile)
-                              showTab(minOf(cur, tabs.size - 1))
-                          } else {
-                              tabs[0].home = true
-                              refresh()
+                  tabs.getOrNull(cur)?.let { captureThumb(it) }
+                  val cols = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 3 else 2
+                  val sv = ScrollView(this)
+                  val grid = LinearLayout(this)
+                  grid.orientation = LinearLayout.VERTICAL
+                  grid.setPadding(dp(8), dp(8), dp(8), dp(8))
+                  sv.addView(grid)
+                  val cardW = ((resources.displayMetrics.widthPixels * 0.9f - dp(16 + 12 * cols)) / cols).toInt()
+                  val cardH = dp(190)
+                  lateinit var dialog: AlertDialog
+                  fun fill() {
+                      grid.removeAllViews()
+                      var i = 0
+                      while (i < tabs.size) {
+                          val row = LinearLayout(this)
+                          row.orientation = LinearLayout.HORIZONTAL
+                          for (c in 0 until cols) {
+                              val idx = i + c
+                              if (idx >= tabs.size) break
+                              row.addView(
+                                  tabCard(idx, cardW, cardH,
+                                      {
+                                          closeTabAt(idx)
+                                          fill()
+                                      },
+                                      {
+                                          showTab(idx)
+                                          dialog.dismiss()
+                                      })
+                              )
                           }
+                          grid.addView(row)
+                          i += cols
+                      }
+                  }
+                  dialog = dlg().setTitle("Tabs")
+                      .setView(sv)
+                      .setPositiveButton("New tab") { _, _ ->
+                          newTab()
+                          showTab(tabs.size - 1)
+                      }
+                      .setNegativeButton("Close", null)
+                      .create()
+                  fill()
+                  dialog.show()
+              }
+
+              private fun tabCard(idx: Int, w: Int, h: Int, onClose: () -> Unit, onPick: () -> Unit): View {
+                  val t = tabs[idx]
+                  val card = LinearLayout(this)
+                  card.orientation = LinearLayout.VERTICAL
+                  val lp = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
+                  lp.setMargins(dp(6), dp(6), dp(6), dp(6))
+                  card.layoutParams = lp
+                  card.background = if (idx == cur) shape(col.card, 12, 0xFF2D7FF9.toInt(), dp(2)) else shape(col.card, 12)
+                  card.setPadding(dp(4), dp(4), dp(4), dp(4))
+                  val head = LinearLayout(this)
+                  head.orientation = LinearLayout.HORIZONTAL
+                  head.gravity = Gravity.CENTER_VERTICAL
+                  val title = TextView(this)
+                  title.text = if (t.home) "Home" else (t.web.title ?: t.web.url ?: "Tab")
+                  title.maxLines = 1
+                  title.ellipsize = TextUtils.TruncateAt.END
+                  title.textSize = 12f
+                  title.setTextColor(col.text)
+                  head.addView(title, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                  val x = TextView(this)
+                  x.text = "\u2715"
+                  x.textSize = 16f
+                  x.setTextColor(col.text)
+                  x.setPadding(dp(10), dp(4), dp(8), dp(4))
+                  x.setOnClickListener { onClose() }
+                  head.addView(x)
+                  card.addView(head)
+                  val inner = w - dp(8)
+                  val thumb = if (t.home) null else t.thumb
+                  if (thumb != null) {
+                      val iv = ImageView(this)
+                      iv.scaleType = ImageView.ScaleType.MATRIX
+                      iv.setImageBitmap(thumb)
+                      val m = Matrix()
+                      val sc = inner.toFloat() / thumb.width
+                      m.setScale(sc, sc)
+                      iv.imageMatrix = m
+                      card.addView(iv, LinearLayout.LayoutParams(inner, h))
+                  } else {
+                      val ph = TextView(this)
+                      ph.text = if (t.home) "Home page" else "No preview yet"
+                      ph.gravity = Gravity.CENTER
+                      ph.textSize = 13f
+                      ph.setTextColor(col.sec)
+                      card.addView(ph, LinearLayout.LayoutParams(inner, h))
+                  }
+                  card.setOnClickListener { onPick() }
+                  return card
+              }
+
+              private fun closeTabAt(idx: Int) {
+                  if (tabs.size > 1) {
+                      val rem = tabs.removeAt(idx)
+                      File(filesDir, "thumbs/" + rem.id + ".jpg").delete()
+                      content.removeView(rem.web)
+                      rem.web.destroy()
+                      deleteProfileLater(rem.profile)
+                      if (idx == cur) cur = minOf(cur, tabs.size - 1) else if (idx < cur) cur -= 1
+                      showTab(cur)
+                  } else {
+                      tabs[0].home = true
+                      tabs[0].thumb = null
+                      refresh()
+                  }
+              }
+
+              // Draw the visible part of the tab into a small picture (only the tab on screen can be captured).
+              private fun captureThumb(t: Tab) {
+                  if (t.home) { t.thumb = null; return }
+                  try {
+                      val w = t.web
+                      if (w.parent == null || w.width <= 0 || w.height <= 0 || w.visibility != View.VISIBLE) return
+                      val s = 0.4f
+                      val bmp = Bitmap.createBitmap(maxOf(1, (w.width * s).toInt()), maxOf(1, (w.height * s).toInt()), Bitmap.Config.ARGB_8888)
+                      val c = Canvas(bmp)
+                      c.scale(s, s)
+                      w.draw(c)
+                      t.thumb = bmp
+                      val dir = File(filesDir, "thumbs")
+                      dir.mkdirs()
+                      java.io.FileOutputStream(File(dir, t.id + ".jpg")).use { out -> bmp.compress(Bitmap.CompressFormat.JPEG, 70, out) }
+                  } catch (e: Exception) { }
+              }
+
+              private fun loadThumb(id: String): Bitmap? {
+                  return try {
+                      val f = File(filesDir, "thumbs/" + id + ".jpg")
+                      if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
+                  } catch (e: Exception) {
+                      null
+                  }
+              }
+
+              // Landscape: scroll down hides the address bar, scroll up (or top of page) shows it.
+              private fun onWebScroll(w: WebView, y: Int, oldY: Int) {
+                  if (tabs.getOrNull(cur)?.web != w) return
+                  val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                  if (!landscape) {
+                      if (barHidden) setTopBar(true)
+                      return
+                  }
+                  if (System.currentTimeMillis() - lastBarToggle < 450) return
+                  val dy = y - oldY
+                  if (y <= 0 || dy < -12) {
+                      if (barHidden) setTopBar(true)
+                  } else if (dy > 12 && y > 80) {
+                      if (!barHidden) setTopBar(false)
+                  }
+              }
+
+              private fun setTopBar(show: Boolean) {
+                  barHidden = !show
+                  lastBarToggle = System.currentTimeMillis()
+                  findViewById<View>(R.id.topBar).visibility = if (show) View.VISIBLE else View.GONE
+              }
+
+              private fun applyOrientation(m: Int) {
+                  requestedOrientation = when (m) {
+                      1 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                      2 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                      3 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                      else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                  }
+              }
+
+              private fun chooseOrientation() {
+                  val sel = prefs.getInt("orient", 0)
+                  dlg().setTitle("Screen rotation")
+                      .setSingleChoiceItems(arrayOf("Follow phone setting", "Portrait", "Landscape", "Auto-rotate (sensor)"), sel) { d, i ->
+                          prefs.edit().putInt("orient", i).apply()
+                          applyOrientation(i)
+                          d.dismiss()
                       }
                       .show()
               }
 
               // ---------- keep tabs when the app is closed / reopened ----------
+
+              override fun onPause() {
+                  super.onPause()
+                  tabs.getOrNull(cur)?.let { captureThumb(it) }
+              }
 
               override fun onStop() {
                   super.onStop()
@@ -1209,7 +1416,7 @@ jobs:
                       for (i in 0 until tabs.size) {
                           val t = tabs[i]
                           val url = t.web.url ?: ""
-                          arr.put(JSONObject().put("home", t.home).put("url", url).put("profile", t.profile))
+                          arr.put(JSONObject().put("home", t.home).put("url", url).put("profile", t.profile).put("id", t.id))
                           if (url.isNotEmpty()) {
                               try {
                                   val b = Bundle()
@@ -1221,6 +1428,8 @@ jobs:
                               } catch (e: Exception) { }
                           }
                       }
+                      val keep = tabs.map { it.id + ".jpg" }.toSet()
+                      File(filesDir, "thumbs").listFiles()?.forEach { if (it.name !in keep) it.delete() }
                       for (t in tabs) {
                           try { cookiesFor(t.profile).flush() } catch (e: Exception) { }
                       }
@@ -1236,6 +1445,9 @@ jobs:
                           newTab(o.optString("profile", ""))
                           val t = tabs[tabs.size - 1]
                           t.home = o.optBoolean("home", true)
+                          val sid = o.optString("id")
+                          if (sid.isNotEmpty()) t.id = sid
+                          t.thumb = loadThumb(t.id)
                           val url = o.optString("url")
                           if (url.isNotEmpty()) {
                               var restored = false
@@ -1418,6 +1630,7 @@ jobs:
                   pm.menu.add(0, 3, 2, "Bookmarks")
                   pm.menu.add(0, 4, 3, "Share link")
                   pm.menu.add(0, 5, 4, "Settings")
+                  pm.menu.add(0, 6, 5, "Rotate screen")
                   pm.setOnMenuItemClickListener {
                       when (it.itemId) {
                           1 -> toggleDesktop()
@@ -1440,6 +1653,7 @@ jobs:
                               }
                           }
                           5 -> showPage(setPage)
+                          6 -> chooseOrientation()
                       }
                       true
                   }
